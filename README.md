@@ -6,6 +6,12 @@ Foundation Model Ops is a runnable control-plane framework for next-generation f
 
 The framework is intentionally lightweight: the core uses the Python standard library, while the architecture reference implementations use PyTorch as an optional dependency. The implementation now includes both local dry-run orchestration and production integration adapters for data lakes, distributed schedulers, model conversion, evaluation harnesses, monitoring, release gates, and serving validation.
 
+## Overall Workflow
+
+![Foundation Model Ops overall workflow](docs/assets/fmops_overall_flow.svg)
+
+The diagram shows the full research-to-production loop: governed data ingestion, quality processing, staged mixture construction, architecture comparison, 400-GPU training, evaluation gates, checkpoint conversion, deployment validation, monitoring, and feedback into the next data/model iteration.
+
 ## What This Framework Covers
 
 1. Large-scale training data system

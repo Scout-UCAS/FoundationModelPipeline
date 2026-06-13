@@ -7,6 +7,12 @@
 3. 四百卡级训练 pipeline：覆盖 Pre-training、SFT、RL、Agentic RL，并把数据交接、分布式训练、稳定性监控、模型转换和部署验证写入统一配置。
 4. 全面评测体系：覆盖通用能力、推理、多模态理解、VLA、长上下文、工具调用、Agent 能力和车端部署效率。
 
+## 整体流程图
+
+![Foundation Model Ops overall workflow](docs/assets/fmops_overall_flow.svg)
+
+这张图展示从数据治理、清洗去重聚类、质量评估、多阶段配比、架构公平对比、四百卡训练、评测门禁、checkpoint 转换、部署验证到监控反馈的完整闭环。
+
 ## 快速开始
 
 不需要安装额外依赖，直接用标准库运行：

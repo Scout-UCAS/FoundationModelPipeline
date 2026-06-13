@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Foundation Model Ops overall workflow</title>
+  <desc id="desc">A detailed paper-style workflow diagram for large-scale data preparation, architecture research, 400 GPU training, evaluation, deployment, monitoring, and feedback loops.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fbff"/>
+      <stop offset="48%" stop-color="#f4f7fb"/>
+      <stop offset="100%" stop-color="#fffaf4"/>
+    </linearGradient>
+    <linearGradient id="dataGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f7f0"/>
+      <stop offset="100%" stop-color="#cdeee0"/>
+    </linearGradient>
+    <linearGradient id="archGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef1ff"/>
+      <stop offset="100%" stop-color="#d9e0ff"/>
+    </linearGradient>
+    <linearGradient id="trainGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff4dc"/>
+      <stop offset="100%" stop-color="#ffe3a6"/>
+    </linearGradient>
+    <linearGradient id="evalGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2ecff"/>
+      <stop offset="100%" stop-color="#e3d1ff"/>
+    </linearGradient>
+    <linearGradient id="deployGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f6ff"/>
+      <stop offset="100%" stop-color="#cdeaff"/>
+    </linearGradient>
+    <linearGradient id="artifactGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eef3f8"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#18324a" flood-opacity="0.13"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-25%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#18324a" flood-opacity="0.09"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#425466"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#2563eb"/>
+    </marker>
+    <style>
+      .title { font: 800 38px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #102033; letter-spacing: .2px; }
+      .subtitle { font: 500 18px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #526273; }
+      .section { font: 800 22px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #142033; }
+      .label { font: 700 16px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1f2937; }
+      .small { font: 500 13px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #425466; }
+      .tiny { font: 600 11px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5d6b7b; }
+      .mono { font: 600 12px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #334155; }
+      .box { stroke: #d6dee8; stroke-width: 1.2; filter: url(#shadow); }
+      .chip { fill: #ffffff; stroke: #dbe4ee; stroke-width: 1; filter: url(#softShadow); }
+      .subbox { fill: rgba(255,255,255,.76); stroke: rgba(119,136,153,.35); stroke-width: 1; }
+      .lane { fill: rgba(255,255,255,.66); stroke: #d7e0ea; stroke-width: 1.2; }
+      .arrow { fill: none; stroke: #425466; stroke-width: 2.4; marker-end: url(#arrow); }
+      .arrowBlue { fill: none; stroke: #2563eb; stroke-width: 2.6; marker-end: url(#arrowBlue); }
+      .arrowDashed { fill: none; stroke: #64748b; stroke-width: 2.1; stroke-dasharray: 8 8; marker-end: url(#arrow); }
+      .feedback { fill: none; stroke: #2563eb; stroke-width: 2.2; stroke-dasharray: 6 7; marker-end: url(#arrowBlue); }
+      .dot { fill: #2563eb; opacity: .72; }
+      .metric { font: 800 15px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #0f766e; }
+      .callout { font: 700 13px Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1d4ed8; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1120" fill="url(#bg)"/>
+  <path d="M0 180 C280 120 460 250 710 175 C1040 76 1270 125 1800 45 L1800 0 L0 0 Z" fill="#eaf3ff" opacity=".8"/>
+  <path d="M0 1015 C320 930 610 1075 920 990 C1260 895 1460 990 1800 910 L1800 1120 L0 1120 Z" fill="#fff4df" opacity=".78"/>
+
+  <text x="70" y="72" class="title">Foundation Model Ops: End-to-End Research-to-Production Workflow</text>
+  <text x="72" y="108" class="subtitle">Detailed control-plane view for 2500T+ data, twenty architecture families, 400-GPU training, comprehensive evaluation, deployment, and governance.</text>
+
+  <rect x="70" y="145" width="1660" height="830" rx="26" class="lane"/>
+  <text x="96" y="185" class="section">Control Plane</text>
+  <text x="96" y="212" class="small">Configs, schemas, registries, runners, production adapters, reports, dashboards, and audit manifests keep all stages reproducible.</text>
+
+  <g transform="translate(95,245)">
+    <rect width="210" height="128" rx="18" fill="#fff" stroke="#d6dee8" filter="url(#softShadow)"/>
+    <text x="20" y="32" class="label">Source Pools</text>
+    <text x="20" y="58" class="small">Open-source corpora</text>
+    <text x="20" y="79" class="small">New collection streams</text>
+    <text x="20" y="100" class="small">Business/internal data</text>
+    <text x="20" y="121" class="tiny">Text | image | video | VLA</text>
+  </g>
+
+  <g transform="translate(350,245)">
+    <rect width="230" height="128" rx="18" fill="#fff" stroke="#d6dee8" filter="url(#softShadow)"/>
+    <text x="20" y="32" class="label">Governance Gates</text>
+    <text x="20" y="58" class="small">License allowlist</text>
+    <text x="20" y="79" class="small">PII/face/plate policy</text>
+    <text x="20" y="100" class="small">Safety and opt-out</text>
+    <text x="20" y="121" class="tiny">risk tags + lineage IDs</text>
+  </g>
+
+  <g transform="translate(625,245)">
+    <rect width="230" height="128" rx="18" fill="#fff" stroke="#d6dee8" filter="url(#softShadow)"/>
+    <text x="20" y="32" class="label">Machine Catalogs</text>
+    <text x="20" y="58" class="mono">datasets_catalog.json</text>
+    <text x="20" y="79" class="mono">benchmark_catalog.json</text>
+    <text x="20" y="100" class="mono">data_manifest.json</text>
+    <text x="20" y="121" class="tiny">download URLs + schema + risk</text>
+  </g>
+
+  <path class="arrow" d="M305 309 L342 309"/>
+  <path class="arrow" d="M580 309 L617 309"/>
+
+  <g transform="translate(95,420)">
+    <rect width="245" height="310" rx="22" fill="url(#dataGrad)" class="box"/>
+    <text x="22" y="38" class="section">1. Data System</text>
+    <text x="22" y="65" class="metric">2500T+ | 20+ languages</text>
+    <rect x="20" y="88" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="116" class="small">ingestion + lineage</text>
+    <rect x="20" y="145" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="173" class="small">clean + redact + repair</text>
+    <rect x="20" y="202" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="230" class="small">dedup + cluster + score</text>
+    <rect x="20" y="259" width="205" height="34" rx="10" class="subbox"/>
+    <text x="34" y="282" class="tiny">jobs/data_* + data_pipeline.py</text>
+  </g>
+
+  <g transform="translate(395,420)">
+    <rect width="245" height="310" rx="22" fill="url(#dataGrad)" class="box"/>
+    <text x="22" y="38" class="section">2. Mixture Builder</text>
+    <text x="22" y="65" class="small">multi-stage curriculum</text>
+    <rect x="20" y="88" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="116" class="small">P0/P1/P2/P3 source tiers</text>
+    <rect x="20" y="145" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="173" class="small">modality/language ratios</text>
+    <rect x="20" y="202" width="205" height="46" rx="10" class="subbox"/>
+    <text x="34" y="230" class="small">packing + shard manifests</text>
+    <rect x="20" y="259" width="205" height="34" rx="10" class="subbox"/>
+    <text x="34" y="282" class="tiny">warmup -> core -> VLA -> reasoning</text>
+  </g>
+
+  <g transform="translate(695,420)">
+    <rect width="290" height="310" rx="22" fill="url(#archGrad)" class="box"/>
+    <text x="22" y="38" class="section">3. Architecture Lab</text>
+    <text x="22" y="65" class="metric">20 model families</text>
+    <rect x="20" y="88" width="250" height="52" rx="10" class="subbox"/>
+    <text x="34" y="111" class="small">MoE, Sparse/Linear, SSM, RetNet,</text>
+    <text x="34" y="130" class="small">Hyena, MLA, Hybrid, MTP</text>
+    <rect x="20" y="153" width="250" height="52" rx="10" class="subbox"/>
+    <text x="34" y="176" class="small">Latent reasoning, dLLM, memory,</text>
+    <text x="34" y="195" class="small">MoD, TTT, byte, omni, VLA</text>
+    <rect x="20" y="218" width="250" height="48" rx="10" class="subbox"/>
+    <text x="34" y="241" class="small">fair setup: tokenizer, tokens,</text>
+    <text x="34" y="260" class="small">context, optimizer, GPU budget</text>
+    <text x="34" y="293" class="tiny">architecture_impl.py + arch-compare</text>
+  </g>
+
+  <g transform="translate(1040,420)">
+    <rect width="250" height="310" rx="22" fill="url(#trainGrad)" class="box"/>
+    <text x="22" y="38" class="section">4. Training Pipeline</text>
+    <text x="22" y="65" class="metric">50 nodes x 8 H100 = 400 GPUs</text>
+    <rect x="20" y="88" width="210" height="42" rx="10" class="subbox"/>
+    <text x="34" y="114" class="small">Pre-training</text>
+    <rect x="20" y="139" width="210" height="42" rx="10" class="subbox"/>
+    <text x="34" y="165" class="small">SFT</text>
+    <rect x="20" y="190" width="210" height="42" rx="10" class="subbox"/>
+    <text x="34" y="216" class="small">RL / GRPO-style</text>
+    <rect x="20" y="241" width="210" height="42" rx="10" class="subbox"/>
+    <text x="34" y="267" class="small">Agentic RL actor-learner</text>
+    <text x="34" y="302" class="tiny">train/* + native_training.py + Slurm</text>
+  </g>
+
+  <g transform="translate(1345,420)">
+    <rect width="300" height="310" rx="22" fill="url(#evalGrad)" class="box"/>
+    <text x="22" y="38" class="section">5. Evaluation and Gates</text>
+    <text x="22" y="65" class="metric">100+ benchmark catalog</text>
+    <rect x="20" y="88" width="260" height="52" rx="10" class="subbox"/>
+    <text x="34" y="111" class="small">LLM, reasoning, code, long context,</text>
+    <text x="34" y="130" class="small">tool use, agents, safety</text>
+    <rect x="20" y="153" width="260" height="52" rx="10" class="subbox"/>
+    <text x="34" y="176" class="small">VLM, video, VLA, robotics,</text>
+    <text x="34" y="195" class="small">autonomous driving, edge efficiency</text>
+    <rect x="20" y="218" width="260" height="48" rx="10" class="subbox"/>
+    <text x="34" y="241" class="small">local JSONL runner + external</text>
+    <text x="34" y="260" class="small">lm-eval/VLMEvalKit/simulator adapters</text>
+    <text x="34" y="293" class="tiny">eval/run.py + release gates</text>
+  </g>
+
+  <path class="arrow" d="M340 575 L386 575"/>
+  <path class="arrow" d="M640 575 L686 575"/>
+  <path class="arrow" d="M985 575 L1031 575"/>
+  <path class="arrow" d="M1290 575 L1336 575"/>
+
+  <g transform="translate(1170,775)">
+    <rect width="475" height="142" rx="22" fill="url(#deployGrad)" class="box"/>
+    <text x="22" y="38" class="section">6. Conversion, Deployment, Monitoring</text>
+    <text x="22" y="65" class="small">checkpoint conversion -> HF/safetensors -> serving validation</text>
+    <text x="22" y="90" class="small">vLLM | TensorRT-LLM | GenAI-Perf | edge/car replay</text>
+    <text x="22" y="115" class="small">Prometheus/Grafana alerts + rollback/governance sign-off</text>
+  </g>
+
+  <path class="arrow" d="M1495 730 L1495 766"/>
+
+  <g transform="translate(95,785)">
+    <rect width="1010" height="132" rx="22" fill="url(#artifactGrad)" class="box"/>
+    <text x="22" y="38" class="section">Audit-Ready Artifacts</text>
+    <text x="22" y="66" class="small">data pipeline plans, shard manifests, architecture rankings, training launch plans, checkpoints, evaluation transcripts, deployment reports, dashboards</text>
+    <text x="22" y="96" class="mono">artifacts/runs/*  |  artifacts/production/*  |  reports/dashboard.html  |  reports/foundation_model_plan.md</text>
+  </g>
+
+  <path class="arrowBlue" d="M1110 851 L1162 851"/>
+
+  <path class="feedback" d="M1494 917 C1490 1012 835 1010 837 740"/>
+  <text x="905" y="1013" class="callout">evaluation/deployment signals refine architecture choices</text>
+
+  <path class="feedback" d="M1375 917 C1230 1055 485 1040 510 738"/>
+  <text x="470" y="1048" class="callout">quality, reward, and safety signals update mixtures</text>
+
+  <path class="feedback" d="M1512 416 C1505 345 865 340 820 416"/>
+  <text x="1025" y="346" class="callout">benchmark gates define fair comparison metrics</text>
+
+  <g transform="translate(910,245)">
+    <rect width="760" height="128" rx="18" fill="#ffffff" stroke="#d6dee8" filter="url(#softShadow)"/>
+    <text x="22" y="32" class="label">Unified Runtime Contracts</text>
+    <text x="22" y="58" class="small">schemas validate configs before any run; registries expose datasets, benchmarks, model families, trainers, and evaluators</text>
+    <text x="22" y="84" class="small">production adapters are guarded by preflight checks and environment gates before external systems are called</text>
+    <text x="22" y="111" class="mono">schema.py | registry.py | production.py | tracking.py | plugins.py | dashboard.py</text>
+  </g>
+
+  <g transform="translate(95,950)">
+    <rect width="315" height="68" rx="16" class="chip"/>
+    <circle cx="30" cy="34" r="8" fill="#0f766e"/>
+    <text x="50" y="30" class="label">Data contract</text>
+    <text x="50" y="51" class="tiny">license, lineage, schema, risk, mixture</text>
+  </g>
+  <g transform="translate(445,950)">
+    <rect width="315" height="68" rx="16" class="chip"/>
+    <circle cx="30" cy="34" r="8" fill="#4f46e5"/>
+    <text x="50" y="30" class="label">Model contract</text>
+    <text x="50" y="51" class="tiny">architecture, config, checkpoint, metrics</text>
+  </g>
+  <g transform="translate(795,950)">
+    <rect width="315" height="68" rx="16" class="chip"/>
+    <circle cx="30" cy="34" r="8" fill="#b45309"/>
+    <text x="50" y="30" class="label">Training contract</text>
+    <text x="50" y="51" class="tiny">stage, world size, monitor, artifact root</text>
+  </g>
+  <g transform="translate(1145,950)">
+    <rect width="315" height="68" rx="16" class="chip"/>
+    <circle cx="30" cy="34" r="8" fill="#7c3aed"/>
+    <text x="50" y="30" class="label">Evaluation contract</text>
+    <text x="50" y="51" class="tiny">benchmarks, gates, transcripts, release</text>
+  </g>
+  <g transform="translate(1495,950)">
+    <rect width="175" height="68" rx="16" class="chip"/>
+    <circle cx="30" cy="34" r="8" fill="#0284c7"/>
+    <text x="50" y="30" class="label">Deploy</text>
+    <text x="50" y="51" class="tiny">latency, memory, power</text>
+  </g>
+
+  <g opacity=".28">
+    <circle class="dot" cx="1540" cy="150" r="3"/>
+    <circle class="dot" cx="1570" cy="168" r="3"/>
+    <circle class="dot" cx="1600" cy="150" r="3"/>
+    <circle class="dot" cx="1630" cy="168" r="3"/>
+    <circle class="dot" cx="1660" cy="150" r="3"/>
+    <circle class="dot" cx="1690" cy="168" r="3"/>
+  </g>
+</svg>
