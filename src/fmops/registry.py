@@ -73,19 +73,9 @@ def _build_architecture(family: str, config: Any, **kwargs: Any) -> Any:
 
 
 def register_builtin_models() -> None:
-    families = [
-        "MoE",
-        "Sparse / Linear Attention",
-        "RNN-like Backbone",
-        "Hybrid Architecture",
-        "MTP",
-        "Latent Reasoning",
-        "dLLM",
-        "Memory-augmented LLM",
-        "Omni-modal Architecture",
-        "Reasoning-native Architecture",
-    ]
-    for family in families:
+    from .architecture_impl import REFERENCE_IMPLEMENTATIONS
+
+    for family in REFERENCE_IMPLEMENTATIONS:
         MODEL_REGISTRY.register(
             family,
             lambda config, _family=family, **kwargs: _build_architecture(_family, config, **kwargs),
@@ -96,4 +86,3 @@ def register_builtin_models() -> None:
 
 
 register_builtin_models()
-

@@ -12,12 +12,22 @@
     "MoE",
     "Sparse / Linear Attention",
     "RNN-like Backbone",
+    "SSM / Selective Scan",
+    "Retention / RetNet",
+    "Long Convolution",
+    "MLA / KV-Compressed Attention",
     "Hybrid Architecture",
     "MTP",
     "Latent Reasoning",
     "dLLM",
     "Memory-augmented LLM",
+    "Mixture-of-Depths",
+    "Test-Time Memory",
+    "Token-free Byte-level LLM",
     "Omni-modal Architecture",
+    "VLA / Robotics Transformer",
+    "JEPA / Latent World Model",
+    "Neuromorphic / Spiking Backbone",
     "Reasoning-native Architecture"
   ],
   "candidates": [
@@ -80,6 +90,86 @@
         "stability_score": 0.82
       },
       "risks": ["reasoning depth", "tool-use transfer"]
+    },
+    {
+      "name": "mamba-selective-scan",
+      "family": "SSM / Selective Scan",
+      "hypothesis": "Selective state-space scans improve long-context throughput and streaming latency with fixed-size state.",
+      "total_params_b": 72,
+      "active_params_b": 72,
+      "components": {
+        "backbone": "selective scan state-space blocks",
+        "mixer": "input-dependent decay + gated depthwise convolution",
+        "cache": "fixed recurrent state"
+      },
+      "metrics": {
+        "validation_loss": 2.01,
+        "tokens_per_second_per_gpu": 3380,
+        "reasoning_score": 62.1,
+        "memory_gb_per_gpu": 51,
+        "stability_score": 0.84
+      },
+      "risks": ["exact retrieval quality", "custom kernel maturity"]
+    },
+    {
+      "name": "retnet-retention-decoder",
+      "family": "Retention / RetNet",
+      "hypothesis": "Retention unifies attention-style training with recurrent and chunkwise recurrent inference.",
+      "total_params_b": 72,
+      "active_params_b": 72,
+      "components": {
+        "mixer": "multi-scale retention",
+        "modes": "parallel recurrent chunkwise",
+        "cache": "decayed key-value summary"
+      },
+      "metrics": {
+        "validation_loss": 2.03,
+        "tokens_per_second_per_gpu": 3240,
+        "reasoning_score": 61.4,
+        "memory_gb_per_gpu": 53,
+        "stability_score": 0.83
+      },
+      "risks": ["implementation variance", "less proven scaling laws"]
+    },
+    {
+      "name": "hyena-long-conv",
+      "family": "Long Convolution",
+      "hypothesis": "Gated long convolution reduces long-sequence cost while preserving local and medium-range sequence structure.",
+      "total_params_b": 70,
+      "active_params_b": 70,
+      "components": {
+        "mixer": "causal depthwise long convolution",
+        "gating": "input gate + residual",
+        "hybridization": "replace selected attention layers"
+      },
+      "metrics": {
+        "validation_loss": 2.05,
+        "tokens_per_second_per_gpu": 3310,
+        "reasoning_score": 60.8,
+        "memory_gb_per_gpu": 50,
+        "stability_score": 0.82
+      },
+      "risks": ["global retrieval", "kernel autotuning"]
+    },
+    {
+      "name": "mla-gqa-kv-compressed",
+      "family": "MLA / KV-Compressed Attention",
+      "hypothesis": "Grouped and latent-compressed KV attention lowers decode bandwidth and KV cache pressure.",
+      "total_params_b": 75,
+      "active_params_b": 75,
+      "components": {
+        "attention": "GQA/MQA + latent KV compression",
+        "cache": "compressed latent K/V",
+        "serving": "decode bandwidth optimized"
+      },
+      "metrics": {
+        "validation_loss": 1.94,
+        "tokens_per_second_per_gpu": 2960,
+        "reasoning_score": 66.4,
+        "memory_gb_per_gpu": 58,
+        "stability_score": 0.87
+      },
+      "risks": ["compression bottleneck", "kernel availability"]
     },
     {
       "name": "hybrid-mamba-transformer",
@@ -182,6 +272,66 @@
       "risks": ["privacy isolation", "state invalidation"]
     },
     {
+      "name": "mixture-of-depths-token-routing",
+      "family": "Mixture-of-Depths",
+      "hypothesis": "Depth-wise token routing allocates extra layers to hard tokens while preserving average inference cost.",
+      "total_params_b": 82,
+      "active_params_b": 58,
+      "components": {
+        "routing": "per-token depth router",
+        "compute": "capacity-limited optional blocks",
+        "objective": "LM loss + router load control"
+      },
+      "metrics": {
+        "validation_loss": 1.97,
+        "tokens_per_second_per_gpu": 2720,
+        "reasoning_score": 66.9,
+        "memory_gb_per_gpu": 64,
+        "stability_score": 0.81
+      },
+      "risks": ["routing instability", "batch shape fragmentation"]
+    },
+    {
+      "name": "test-time-memory-adapter",
+      "family": "Test-Time Memory",
+      "hypothesis": "Fast context-derived memory improves long-context compression, personalization, and agent state tracking.",
+      "total_params_b": 80,
+      "active_params_b": 80,
+      "components": {
+        "memory": "test-time fast memory + learned memory bank",
+        "update": "context-conditioned associative write",
+        "readout": "gated memory fusion"
+      },
+      "metrics": {
+        "validation_loss": 1.98,
+        "tokens_per_second_per_gpu": 2240,
+        "reasoning_score": 67.5,
+        "memory_gb_per_gpu": 73,
+        "stability_score": 0.80
+      },
+      "risks": ["state privacy", "online update drift"]
+    },
+    {
+      "name": "byte-level-token-free-decoder",
+      "family": "Token-free Byte-level LLM",
+      "hypothesis": "Byte-level modeling reduces tokenizer bias and improves low-resource, code, noisy text, and unified multimodal token streams.",
+      "total_params_b": 76,
+      "active_params_b": 76,
+      "components": {
+        "tokenization": "UTF-8 bytes",
+        "mixer": "byte patches + decoder backbone",
+        "objective": "byte-level autoregressive LM"
+      },
+      "metrics": {
+        "validation_loss": 2.08,
+        "tokens_per_second_per_gpu": 2580,
+        "reasoning_score": 62.7,
+        "memory_gb_per_gpu": 68,
+        "stability_score": 0.84
+      },
+      "risks": ["longer sequences", "benchmark tokenizer mismatch"]
+    },
+    {
       "name": "omni-modal-unified-tokens",
       "family": "Omni-modal Architecture",
       "hypothesis": "Unified token spaces improve transfer across text, image, video, audio, and actions.",
@@ -200,6 +350,66 @@
         "stability_score": 0.80
       },
       "risks": ["token budget pressure", "modality imbalance"]
+    },
+    {
+      "name": "robotics-transformer-vla-policy",
+      "family": "VLA / Robotics Transformer",
+      "hypothesis": "A dedicated vision-language-action policy head improves robot and car-side closed-loop action quality.",
+      "total_params_b": 88,
+      "active_params_b": 88,
+      "components": {
+        "inputs": "text image video proprioception action history",
+        "heads": "continuous action + discrete action + success",
+        "training": "BC + RL + simulator replay"
+      },
+      "metrics": {
+        "validation_loss": 1.99,
+        "tokens_per_second_per_gpu": 2060,
+        "reasoning_score": 65.8,
+        "memory_gb_per_gpu": 78,
+        "stability_score": 0.79
+      },
+      "risks": ["embodiment mismatch", "sim-to-real transfer"]
+    },
+    {
+      "name": "latent-world-model-jepa",
+      "family": "JEPA / Latent World Model",
+      "hypothesis": "Latent predictive objectives improve video/VLA world modeling and action-conditioned planning.",
+      "total_params_b": 84,
+      "active_params_b": 84,
+      "components": {
+        "objective": "predict future latent representation",
+        "inputs": "context frames + optional actions",
+        "loss": "cosine latent prediction"
+      },
+      "metrics": {
+        "validation_loss": 2.02,
+        "tokens_per_second_per_gpu": 2360,
+        "reasoning_score": 64.6,
+        "memory_gb_per_gpu": 70,
+        "stability_score": 0.83
+      },
+      "risks": ["evaluation alignment", "joint LM-policy integration"]
+    },
+    {
+      "name": "spiking-event-backbone",
+      "family": "Neuromorphic / Spiking Backbone",
+      "hypothesis": "Spiking/event-style recurrence provides a low-power long-term path for event cameras, robotics, and edge control.",
+      "total_params_b": 48,
+      "active_params_b": 48,
+      "components": {
+        "mixer": "leaky integrate-and-fire surrogate spikes",
+        "state": "membrane potential",
+        "target": "edge and event-camera exploration"
+      },
+      "metrics": {
+        "validation_loss": 2.18,
+        "tokens_per_second_per_gpu": 3540,
+        "reasoning_score": 55.6,
+        "memory_gb_per_gpu": 42,
+        "stability_score": 0.76
+      },
+      "risks": ["LLM quality gap", "tooling immaturity"]
     },
     {
       "name": "reasoning-native-verifier-policy",
@@ -223,4 +433,3 @@
     }
   ]
 }
-

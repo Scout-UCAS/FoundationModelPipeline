@@ -1,0 +1,1 @@
+{"id":"reasoning-001","benchmark":"reasoning_math_code","dataset":"GSM8K","prompt":"If Alice has 40 apples and buys 2 more, how many apples does she have?","answer":"42","prediction":"42","consensus_pass":1.0,"verified_solution_rate":1.0}

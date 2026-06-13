@@ -1,0 +1,1 @@
+{"id":"general-001","benchmark":"general_multilingual_core","dataset":"MMLU","prompt":"Which option is the capital of France? A. Berlin B. Paris C. Rome D. Madrid","choices":["Berlin","Paris","Rome","Madrid"],"answer":"B","prediction":"Paris","confidence":0.92}

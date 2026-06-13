@@ -53,6 +53,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 
 - `configs/data_manifest.json`：2500T+ 数据源、20+ 语言覆盖、处理阶段和多阶段数据配比。
 - `configs/datasets_catalog.json`：机器可读的数据集 registry，包含下载链接、license、schema、模态、优先级和风险标签。
+- `configs/benchmark_catalog.json`：机器可读的评测 benchmark registry，包含维度、模态、指标、harness、下载链接和 license 备注。
 - `configs/architecture_experiments.json`：统一实验设置、结构候选、核心指标和综合排序。
 - `configs/training_pipeline.json`：50 节点 x 8 卡的 400 GPU 训练流水线。
 - `configs/evaluation_suite.json`：按能力维度组织的评测基准、权重和发布门禁。
@@ -65,8 +66,9 @@ PYTHONPATH=src python -m unittest discover -s tests
 这一版已经补齐框架内核，不再只是配置和文档：
 
 - `src/fmops/schema.py`：配置 schema、版本校验和轻量 migration 入口。
-- `src/fmops/registry.py`：模型、数据集、trainer、evaluator 的统一 registry，模型 registry 已挂载十类架构 reference implementation。
+- `src/fmops/registry.py`：模型、数据集、trainer、evaluator 的统一 registry，模型 registry 已挂载二十类架构 reference implementation。
 - `src/fmops/dataset_catalog.py`：机器可读数据集 catalog，支持 family/modality/priority 过滤和风险统计。
+- `src/fmops/benchmark_catalog.py`：机器可读 benchmark catalog，支持 dimension/modality/harness 过滤和覆盖统计。
 - `src/fmops/data_pipeline.py`：数据处理流水线 dry-run，输出 stage artifact、source count、operation count 和 lineage URI。
 - `src/fmops/training_runner.py`：Pre-training、SFT、RL、Agentic RL 的统一 dry-run launcher。
 - `src/fmops/native_training.py`：真实 PyTorch 训练后端，覆盖 Pre-training、SFT、RL、Agentic RL，输出 checkpoint、metrics 和 trainer state。
@@ -77,7 +79,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 - `jobs/checkpoint_convert.py`、`jobs/deployment_validate.py`：checkpoint serving conversion 和 vLLM/TensorRT-LLM/GenAI-Perf 部署验证 wrapper。
 - `jobs/monitoring_export.py`、`jobs/release_gate.py`：Prometheus/Grafana 告警包和发布门禁聚合。
 - `train/pretrain.py`、`train/sft.py`、`train/rl.py`、`train/agentic_rl.py`：四阶段训练入口，支持本地 `dry-run`、真实本地 `native` 训练和生产 `external` 分发；生产模式读取 `FMOPS_PRETRAIN_BACKEND_COMMAND`、`FMOPS_SFT_BACKEND_COMMAND`、`FMOPS_RL_BACKEND_COMMAND`、`FMOPS_AGENTIC_RL_BACKEND_COMMAND` 或通用 `FMOPS_TRAINING_BACKEND_COMMAND`。
-- `src/fmops/evaluation_runner.py` 和 `eval/run.py`：评测 runner，输出可追踪 JSON report。
+- `src/fmops/evaluation_runner.py` 和 `eval/run.py`：真实本地评测 runner，读取 JSONL 样本/预测、调用外部模型命令或 HTTP endpoint、计算指标并输出可追踪 JSON report。
 - `src/fmops/checkpoint.py`：checkpoint conversion manifest，支持训练格式到推理格式的元数据转换和可选文件复制。
 - `src/fmops/deployment.py`：服务端/车端部署 envelope 检查，包括 latency、memory、decode throughput、power。
 - `src/fmops/tracking.py`：实验 run manifest，记录配置引用、artifact、metric 和运行环境。
@@ -123,9 +125,35 @@ FMOPS_ALLOW_PRODUCTION_EXECUTE=1 PYTHONPATH=src python -m fmops.cli production-r
 
 当前开发机如果没有 Spark、Slurm、lm-eval、vLLM 等外部依赖，`production-check` 会把对应任务标记为 blocked。这是保护行为，不是配置失败。
 
+## 评测入口
+
+```bash
+PYTHONPATH=src python eval/run.py \
+  --config-dir configs \
+  --model-id reference-model \
+  --output artifacts/runs/evaluation_report.json
+```
+
+当前 runner 已经是真实本地评测器：默认读取 `eval/smoke` 的 JSONL 样本，计算指标、执行 gate，并在 report 旁写出每个 benchmark 的 transcript。也可以接入真实样本、预测文件、外部模型命令或 HTTP endpoint：
+
+```bash
+PYTHONPATH=src python eval/run.py \
+  --samples-dir /path/to/eval-jsonl \
+  --predictions /path/to/predictions.jsonl \
+  --benchmark general_multilingual_core \
+  --output artifacts/runs/evaluation_report.json
+
+PYTHONPATH=src python eval/run.py \
+  --samples-dir /path/to/eval-jsonl \
+  --model-command "python serve_one_sample.py" \
+  --fail-on-gate
+```
+
+JSONL 样本支持 `id`、`benchmark`、`dataset`、`prompt`/`question`、`answer`/`reference`、`choices`、`prediction`，以及 `expected_tool`、`reference_action`、`success`、`collision_free`、`prefill_ms`、`decode_tok_s`、`memory_gb`、`power_w` 等任务字段。
+
 ## 评测 Benchmark 目录
 
-`configs/evaluation_suite.json` 保存机器可读的 benchmark 分组、权重、指标、执行频率和发布门禁。下面是接入真实评测 adapter 时使用的人类可读目录。公开 benchmark 适合做横向可比性；正式发布还需要私有、去污染、多语言、多模态、VLA 和车端 replay holdout。
+`configs/evaluation_suite.json` 保存发布评测分组、权重、指标、执行频率和 gate。`configs/benchmark_catalog.json` 是机器可读的全面 benchmark catalog，包含 100+ 个公开 benchmark 的维度、模态、指标、harness、下载链接和 license 备注。下面是接入真实评测 adapter 时使用的人类可读目录。公开 benchmark 适合做横向可比性；正式发布还需要私有、去污染、多语言、多模态、VLA 和车端 replay holdout。
 
 ### 评测 Harness
 
@@ -176,12 +204,22 @@ PYTHONPATH=src python -m unittest discover -s tests -p "test_architecture_impl.p
 | MoE | `MoETransformerBlock`, `MoEFeedForward`, `TopKRouter` | top-k router、expert FFN、router load-balance aux loss、attention+MoE block | [GShard](https://arxiv.org/abs/2006.16668), [Switch Transformers](https://arxiv.org/abs/2101.03961), [Mixtral of Experts](https://arxiv.org/abs/2401.04088), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [tensorflow/lingvo GShard](https://github.com/tensorflow/lingvo/blob/master/lingvo/core/gshard_builder.py), [google-research/t5x](https://github.com/google-research/t5x), [mistralai/mistral-inference](https://github.com/mistralai/mistral-inference), [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3) |
 | Sparse / Linear Attention | `SparseLinearAttentionBlock`, `SlidingWindowAttention`, `CausalLinearAttention` | causal sliding-window sparse attention + ELU feature-map causal linear attention，并用可学习 gate 混合 | [Longformer](https://arxiv.org/abs/2004.05150), [BigBird](https://arxiv.org/abs/2007.14062), [Linear Transformers](https://arxiv.org/abs/2006.16236), [Performer](https://arxiv.org/abs/2009.14794) | [allenai/longformer](https://github.com/allenai/longformer), [google-research/bigbird](https://github.com/google-research/bigbird), [idiap/fast-transformers](https://github.com/idiap/fast-transformers), [google-research Performer](https://github.com/google-research/google-research/tree/master/performer) |
 | RNN-like Backbone | `RNNBackboneBlock`, `RecurrentTokenMixer` | token-by-token recurrent state update、learned decay、gated state output、FFN residual block | [RWKV](https://arxiv.org/abs/2305.13048), [RetNet](https://arxiv.org/abs/2307.08621), [Mamba](https://arxiv.org/abs/2312.00752) | [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM), [microsoft/torchscale RetNet](https://github.com/microsoft/torchscale/blob/main/torchscale/architecture/retnet.py), [state-spaces/mamba](https://github.com/state-spaces/mamba) |
+| SSM / Selective Scan | `SelectiveStateSpaceBlock` | Mamba 风格 input-dependent decay、gated depthwise convolution、selective recurrent state、FFN residual block | [Mamba](https://arxiv.org/abs/2312.00752), [Mamba-2](https://arxiv.org/abs/2405.21060), [VMamba](https://arxiv.org/abs/2401.10166), [MambaByte](https://arxiv.org/abs/2401.13660) | [state-spaces/mamba](https://github.com/state-spaces/mamba), [MzeroMiko/VMamba](https://github.com/MzeroMiko/VMamba), [goombalab/hydra](https://github.com/goombalab/hydra) |
+| Retention / RetNet | `RetentionBlock` | multi-head decayed causal retention，兼顾 attention-like 并行训练和 recurrent cache 解释 | [Retentive Network](https://arxiv.org/abs/2307.08621), [TorchScale RetNet](https://github.com/microsoft/torchscale) | [microsoft/torchscale RetNet](https://github.com/microsoft/torchscale/blob/main/torchscale/architecture/retnet.py), [Jamie-Stirling/RetNet](https://github.com/Jamie-Stirling/RetNet), [syncdoth/RetNet](https://github.com/syncdoth/RetNet) |
+| Long Convolution | `LongConvolutionBlock` | causal depthwise long convolution + gate + residual FFN，覆盖 Hyena/H3 类 attention replacement | [Hyena Hierarchy](https://proceedings.mlr.press/v202/poli23a.html), [H3](https://arxiv.org/abs/2212.14052), [StripedHyena](https://arxiv.org/abs/2311.09431) | [HazyResearch/safari](https://github.com/HazyResearch/safari), [togethercomputer/stripedhyena](https://github.com/togethercomputer/stripedhyena) |
+| MLA / KV-Compressed Attention | `KVCompressedAttentionBlock` | GQA/MQA shared KV heads + latent K/V compression，降低 decode KV cache 和带宽压力 | [MQA](https://arxiv.org/abs/1911.02150), [GQA](https://arxiv.org/abs/2305.13245), [DeepSeek-V2 MLA](https://arxiv.org/abs/2405.04434), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3), [deepseek-ai/FlashMLA](https://github.com/deepseek-ai/FlashMLA), [huggingface/transformers GQA](https://github.com/huggingface/transformers) |
 | Hybrid Architecture | `HybridArchitectureModel` | Transformer attention block 与 recurrent block 交替堆叠，保留 causal LM head | [Jamba](https://arxiv.org/abs/2403.19887), [Griffin / RecurrentGemma](https://arxiv.org/abs/2402.19427), [Mamba](https://arxiv.org/abs/2312.00752) | [huggingface/transformers Jamba](https://github.com/huggingface/transformers/tree/main/src/transformers/models/jamba), [google-deepmind/recurrentgemma](https://github.com/google-deepmind/recurrentgemma), [state-spaces/mamba](https://github.com/state-spaces/mamba) |
 | MTP | `MultiTokenPredictionModel` | shared decoder trunk + 多个 future-token prediction heads，按 offset 计算辅助 CE loss | [Better & Faster LLMs via Multi-token Prediction](https://arxiv.org/abs/2404.19737), [Medusa](https://arxiv.org/abs/2401.10774), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [FasterDecoding/Medusa](https://github.com/FasterDecoding/Medusa), [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3), [vllm-project/vllm MTP issue](https://github.com/vllm-project/vllm/issues/12181) |
 | Latent Reasoning | `LatentReasoningModel` | 在 token 序列中插入可学习 latent thought tokens，输出时隐藏 latent 位置，仅对可见 token 建模 | [Coconut](https://arxiv.org/abs/2412.06769), [Quiet-STaR](https://arxiv.org/abs/2403.09629) | [facebookresearch/coconut](https://github.com/facebookresearch/coconut), [ezelikman/quiet-star](https://github.com/ezelikman/quiet-star) |
 | dLLM | `DiscreteDiffusionLanguageModel` | discrete masked forward process、time embedding、bidirectional denoising transformer、masked-token reconstruction loss | [Diffusion-LM](https://arxiv.org/abs/2205.14217), [DiffuSeq](https://arxiv.org/abs/2210.08933), [LLaDA](https://arxiv.org/abs/2502.09992) | [XiangLi1999/Diffusion-LM](https://github.com/XiangLi1999/Diffusion-LM), [Shark-NLP/DiffuSeq](https://github.com/Shark-NLP/DiffuSeq), [ML-GSAI/LLaDA](https://github.com/ML-GSAI/LLaDA) |
 | Memory-augmented LLM | `MemoryAugmentedLM`, `MemoryAugmentedBlock`, `DifferentiableMemory` | learned/external memory key-value bank、differentiable retrieval、memory gate、decoder residual block | [RETRO](https://arxiv.org/abs/2112.04426), [Memorizing Transformers](https://arxiv.org/abs/2203.08913), [REALM](https://arxiv.org/abs/2002.08909), [MemGPT](https://arxiv.org/abs/2310.08560) | [lucidrains/RETRO-pytorch](https://github.com/lucidrains/RETRO-pytorch), [lucidrains/memorizing-transformers-pytorch](https://github.com/lucidrains/memorizing-transformers-pytorch), [google-research/language REALM](https://github.com/google-research/language/tree/master/language/realm), [letta-ai/letta](https://github.com/letta-ai/letta) |
+| Mixture-of-Depths | `MixtureOfDepthsModel` | per-token depth router、capacity-limited optional blocks、straight-through routing mask、shared LM head | [Mixture-of-Depths](https://arxiv.org/abs/2404.02258), [Adaptive Computation Time](https://arxiv.org/abs/1603.08983) | [kyegomez/Mixture-of-Depths](https://github.com/kyegomez/Mixture-of-Depths), [astramind-ai/Mixture-of-depths](https://github.com/astramind-ai/Mixture-of-depths) |
+| Test-Time Memory | `TestTimeMemoryModel` | context-derived fast memory、learned memory bank、associative read、gated memory fusion | [TTT](https://arxiv.org/abs/2407.04620), [Titans](https://arxiv.org/abs/2501.00663), [Memorizing Transformers](https://arxiv.org/abs/2203.08913) | [test-time-training/ttt-lm-pytorch](https://github.com/test-time-training/ttt-lm-pytorch), [test-time-training/ttt-lm-jax](https://github.com/test-time-training/ttt-lm-jax), [lucidrains/titans-pytorch](https://github.com/lucidrains/titans-pytorch) |
+| Token-free Byte-level LLM | `ByteLevelLanguageModel` | UTF-8/byte vocabulary、byte patch convolution、decoder backbone、byte-level LM loss | [ByT5](https://arxiv.org/abs/2105.13626), [MEGABYTE](https://arxiv.org/abs/2305.07185), [MambaByte](https://arxiv.org/abs/2401.13660), [SpaceByte](https://arxiv.org/abs/2404.14408) | [google-research/byt5](https://github.com/google-research/byt5), [lucidrains/MEGABYTE-pytorch](https://github.com/lucidrains/MEGABYTE-pytorch), [kjslag/spacebyte](https://github.com/kjslag/spacebyte) |
 | Omni-modal Architecture | `OmniModalArchitecture` | text/image/video/audio/action 输入投影到统一 token space，加入 modality embedding，统一 causal decoder，输出 text/action heads | [Chameleon](https://arxiv.org/abs/2405.09818), [Unified-IO 2](https://arxiv.org/abs/2312.17172), [ImageBind](https://arxiv.org/abs/2305.05665), [AnyGPT](https://arxiv.org/abs/2402.12226), [NExT-GPT](https://arxiv.org/abs/2309.05519) | [facebookresearch/chameleon](https://github.com/facebookresearch/chameleon), [allenai/unified-io-2](https://github.com/allenai/unified-io-2), [facebookresearch/ImageBind](https://github.com/facebookresearch/ImageBind), [OpenMOSS/AnyGPT](https://github.com/OpenMOSS/AnyGPT), [NExT-GPT/NExT-GPT](https://github.com/NExT-GPT/NExT-GPT) |
+| VLA / Robotics Transformer | `VLARoboticsTransformer` | text/image/proprioception/action history 融合，输出 continuous action、discrete action 和 success heads | [RT-1](https://arxiv.org/abs/2212.06817), [RT-2](https://arxiv.org/abs/2307.15818), [OpenVLA](https://arxiv.org/abs/2406.09246), [Octo](https://arxiv.org/abs/2405.12213) | [google-research/robotics_transformer](https://github.com/google-research/robotics_transformer), [openvla/openvla](https://github.com/openvla/openvla), [octo-models/octo](https://github.com/octo-models/octo) |
+| JEPA / Latent World Model | `LatentWorldModel` | action-conditioned latent predictive objective，用 context/target features 做视频/VLA world modeling | [I-JEPA](https://arxiv.org/abs/2301.08243), [V-JEPA](https://arxiv.org/abs/2404.08471), [World Models](https://arxiv.org/abs/1803.10122), [DreamerV3](https://arxiv.org/abs/2301.04104) | [facebookresearch/ijepa](https://github.com/facebookresearch/ijepa), [facebookresearch/jepa](https://github.com/facebookresearch/jepa), [danijar/dreamerv3](https://github.com/danijar/dreamerv3) |
+| Neuromorphic / Spiking Backbone | `SpikingBackboneModel` | leaky integrate-and-fire recurrent state、surrogate spike gradient、面向 event/edge 探索的 LM head | [Spikformer](https://arxiv.org/abs/2209.15425), [SpikeGPT](https://arxiv.org/abs/2302.13939), [SpikingBERT](https://arxiv.org/abs/2308.10873) | [ZK-Zhou/spikformer](https://github.com/ZK-Zhou/spikformer), [Rydrgn/SpikeGPT](https://github.com/ridgerchu/SpikeGPT), [fangwei123456/spikingjelly](https://github.com/fangwei123456/spikingjelly) |
 | Reasoning-native Architecture | `ReasoningNativeArchitecture` | shared decoder trunk + policy head + verifier/process reward head + planner head + value head，多目标 loss | [STaR](https://arxiv.org/abs/2203.14465), [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050), [Training Verifiers](https://arxiv.org/abs/2110.14168), [DeepSeek-R1](https://arxiv.org/abs/2501.12948) | [ezelikman/STaR](https://github.com/ezelikman/STaR), [openai/prm800k](https://github.com/openai/prm800k), [openai/grade-school-math](https://github.com/openai/grade-school-math), [deepseek-ai/DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1), [huggingface/open-r1](https://github.com/huggingface/open-r1) |
 
 最小调用示例：

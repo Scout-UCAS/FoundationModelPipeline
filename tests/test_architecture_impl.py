@@ -5,17 +5,28 @@ import unittest
 import torch
 
 from fmops.architecture_impl import (
+    ByteLevelLanguageModel,
     DiscreteDiffusionLanguageModel,
     HybridArchitectureModel,
+    KVCompressedAttentionBlock,
     LatentReasoningModel,
+    LatentWorldModel,
+    LongConvolutionBlock,
     MemoryAugmentedLM,
+    MixtureOfDepthsModel,
     MoETransformerBlock,
     ModelConfig,
     MultiTokenPredictionModel,
     OmniModalArchitecture,
+    REFERENCE_IMPLEMENTATIONS,
     RNNBackboneBlock,
     ReasoningNativeArchitecture,
+    RetentionBlock,
+    SelectiveStateSpaceBlock,
+    SpikingBackboneModel,
     SparseLinearAttentionBlock,
+    TestTimeMemoryModel,
+    VLARoboticsTransformer,
     build_reference_implementation,
 )
 
@@ -54,6 +65,32 @@ class ArchitectureImplementationTest(unittest.TestCase):
         self.assertEqual(x.shape, y.shape)
         self.assertEqual((2, self.config.d_model), state.shape)
 
+    def test_selective_state_space_block(self) -> None:
+        block = SelectiveStateSpaceBlock(self.config, conv_kernel=3)
+        x = torch.randn(2, 8, self.config.d_model)
+        y, state = block(x)
+        self.assertEqual(x.shape, y.shape)
+        self.assertEqual((2, self.config.d_model), state.shape)
+
+    def test_retention_block(self) -> None:
+        block = RetentionBlock(self.config)
+        x = torch.randn(2, 8, self.config.d_model)
+        y = block(x)
+        self.assertEqual(x.shape, y.shape)
+
+    def test_long_convolution_block(self) -> None:
+        block = LongConvolutionBlock(self.config, kernel_size=5)
+        x = torch.randn(2, 8, self.config.d_model)
+        y = block(x)
+        self.assertEqual(x.shape, y.shape)
+
+    def test_kv_compressed_attention_block(self) -> None:
+        block = KVCompressedAttentionBlock(self.config, kv_heads=2, latent_dim=8)
+        x = torch.randn(2, 8, self.config.d_model)
+        output = block(x)
+        self.assertEqual(x.shape, output["hidden"].shape)
+        self.assertEqual((2, 8, 8), output["latent_kv"].shape)
+
     def test_hybrid_architecture_model(self) -> None:
         model = HybridArchitectureModel(self.config, attention_every=2)
         output = model(self.input_ids, labels=self.input_ids)
@@ -90,6 +127,26 @@ class ArchitectureImplementationTest(unittest.TestCase):
         self.assertEqual(self.config.n_layers, len(output["memory_weights"]))
         self.assertIn("loss", output)
 
+    def test_mixture_of_depths_model(self) -> None:
+        model = MixtureOfDepthsModel(self.config, capacity_ratio=0.5)
+        output = model(self.input_ids, labels=self.input_ids)
+        self.assertEqual((2, 8, self.config.vocab_size), output["logits"].shape)
+        self.assertEqual((self.config.n_layers, 2, 8), output["router_scores"].shape)
+        self.assertIn("loss", output)
+
+    def test_test_time_memory_model(self) -> None:
+        model = TestTimeMemoryModel(self.config, memory_slots=5)
+        output = model(self.input_ids, labels=self.input_ids)
+        self.assertEqual((2, 8, self.config.vocab_size), output["logits"].shape)
+        self.assertEqual((2, 8, self.config.d_model), output["fast_memory"].shape)
+        self.assertIn("loss", output)
+
+    def test_byte_level_language_model(self) -> None:
+        model = ByteLevelLanguageModel(self.config, byte_vocab_size=64, patch_size=3)
+        output = model(self.input_ids, labels=self.input_ids)
+        self.assertEqual((2, 8, 64), output["logits"].shape)
+        self.assertIn("loss", output)
+
     def test_omni_modal_architecture(self) -> None:
         model = OmniModalArchitecture(
             self.config,
@@ -109,6 +166,41 @@ class ArchitectureImplementationTest(unittest.TestCase):
         self.assertEqual((2, 10, self.config.vocab_size), output["text_logits"].shape)
         self.assertEqual((2, 10, 11), output["action_logits"].shape)
 
+    def test_vla_robotics_transformer(self) -> None:
+        model = VLARoboticsTransformer(
+            self.config,
+            image_dim=6,
+            proprio_dim=5,
+            action_dim=3,
+            action_bins=11,
+        )
+        output = model(
+            input_ids=self.input_ids[:, :3],
+            image_features=torch.randn(2, 2, 6),
+            proprioception=torch.randn(2, 2, 5),
+            action_history=torch.randn(2, 2, 3),
+            action_labels=torch.randn(2, 3),
+        )
+        self.assertEqual((2, 3), output["action"].shape)
+        self.assertEqual((2, 3, 11), output["action_logits"].shape)
+        self.assertIn("loss", output)
+
+    def test_latent_world_model(self) -> None:
+        model = LatentWorldModel(self.config, latent_dim=12, action_dim=3)
+        output = model(
+            context_features=torch.randn(2, 4, self.config.d_model),
+            target_features=torch.randn(2, 4, self.config.d_model),
+            actions=torch.randn(2, 3),
+        )
+        self.assertEqual((2, 12), output["predicted_latent"].shape)
+        self.assertIn("loss", output)
+
+    def test_spiking_backbone_model(self) -> None:
+        model = SpikingBackboneModel(self.config)
+        output = model(self.input_ids, labels=self.input_ids)
+        self.assertEqual((2, 8, self.config.vocab_size), output["logits"].shape)
+        self.assertIn("loss", output)
+
     def test_reasoning_native_architecture(self) -> None:
         model = ReasoningNativeArchitecture(self.config, num_plan_tokens=9)
         process_labels = torch.ones(2, 8)
@@ -125,19 +217,7 @@ class ArchitectureImplementationTest(unittest.TestCase):
         self.assertIn("loss", output)
 
     def test_registry_builds_all_requested_families(self) -> None:
-        families = [
-            "MoE",
-            "Sparse / Linear Attention",
-            "RNN-like Backbone",
-            "Hybrid Architecture",
-            "MTP",
-            "Latent Reasoning",
-            "dLLM",
-            "Memory-augmented LLM",
-            "Omni-modal Architecture",
-            "Reasoning-native Architecture",
-        ]
-        for family in families:
+        for family in REFERENCE_IMPLEMENTATIONS:
             with self.subTest(family=family):
                 module = build_reference_implementation(family, self.config)
                 self.assertIsInstance(module, torch.nn.Module)
@@ -145,4 +225,3 @@ class ArchitectureImplementationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

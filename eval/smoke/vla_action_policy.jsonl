@@ -1,0 +1,1 @@
+{"id":"vla-001","benchmark":"vla_action_policy","dataset":"LIBERO","prompt":"Move the gripper to the red cube and close it.","reference_action":[0.1,0.2,0.3,1.0],"predicted_action":[0.1,0.2,0.3,1.0],"prediction":"[0.1,0.2,0.3,1.0]","success":true,"collision_free":true,"recovered":true}

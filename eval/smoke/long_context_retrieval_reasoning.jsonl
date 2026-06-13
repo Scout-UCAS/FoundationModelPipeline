@@ -1,0 +1,1 @@
+{"id":"long-001","benchmark":"long_context_retrieval_reasoning","dataset":"Needle-in-a-Haystack","prompt":"Long context contains the key phrase: riverstone-742. What is the key phrase?","answer":"riverstone-742","prediction":"riverstone-742","citation_precision":1.0,"long_range_consistency":1.0}

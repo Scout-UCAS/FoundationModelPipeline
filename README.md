@@ -37,6 +37,7 @@ The framework is intentionally lightweight: the core uses the Python standard li
 .
 +-- configs/
 |   +-- architecture_experiments.json
+|   +-- benchmark_catalog.json
 |   +-- data_manifest.json
 |   +-- datasets_catalog.json
 |   +-- evaluation_suite.json
@@ -55,6 +56,7 @@ The framework is intentionally lightweight: the core uses the Python standard li
 +-- src/fmops/
 |   +-- architecture_impl.py
 |   +-- architectures.py
+|   +-- benchmark_catalog.py
 |   +-- checkpoint.py
 |   +-- cli.py
 |   +-- dashboard.py
@@ -76,7 +78,9 @@ The framework is intentionally lightweight: the core uses the Python standard li
 |   +-- pretrain.py
 |   +-- rl.py
 |   +-- sft.py
-+-- eval/run.py
++-- eval/
+|   +-- run.py
+|   +-- smoke/
 +-- plugins/example_evaluator/plugin.json
 +-- tests/
 +-- reports/
@@ -194,6 +198,7 @@ make dashboard
 | `schema-validate` | Validates config files against registered lightweight schemas. | stdout |
 | `registry` | Prints registered model components. | stdout |
 | `datasets` | Prints dataset catalog summary and filtered entries. | stdout |
+| `benchmarks` | Prints benchmark catalog summary and filtered entries. | stdout |
 | `data-plan` | Prints data system summary and staged mixture plan. | stdout |
 | `arch-compare` | Prints ranked architecture comparison table. | stdout |
 | `train-plan` | Prints stage launch commands from the training config. | stdout |
@@ -268,6 +273,14 @@ Defines release-quality evaluation:
 - Agent tasks.
 - Edge/car-side deployment efficiency.
 
+### `configs/benchmark_catalog.json`
+
+Defines the machine-readable benchmark catalog:
+
+- 100+ LLM, VLM, video, audio, VLA, agent, tool-use, long-context, safety, and efficiency benchmarks.
+- Dimension, family, modality, primary metric, supported harnesses, download URL, license notes, and tags.
+- Filterable through `PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla`.
+
 ### `configs/production_integration.json`
 
 Defines the production adapter layer:
@@ -287,17 +300,18 @@ Defines the production adapter layer:
 | Schema validation | `src/fmops/schema.py` | Lightweight object schemas, version checks, config directory validation. |
 | Registry | `src/fmops/registry.py` | Model, dataset, trainer, and evaluator registries. |
 | Dataset catalog | `src/fmops/dataset_catalog.py` | Machine-readable dataset entries and risk summaries. |
+| Benchmark catalog | `src/fmops/benchmark_catalog.py` | Machine-readable benchmark entries, harness mappings, and coverage summaries. |
 | Data pipeline | `src/fmops/data_pipeline.py` | Dry-run data pipeline artifacts and lineage URIs. |
 | Training runner | `src/fmops/training_runner.py` | Dry-run distributed training launch plans. |
 | Native trainer | `src/fmops/native_training.py` | Real PyTorch training loops for Pre-training, SFT, RL, and Agentic RL with checkpoints and metrics. |
-| Evaluation runner | `src/fmops/evaluation_runner.py` | Benchmark execution reports and release gates. |
+| Evaluation runner | `src/fmops/evaluation_runner.py` | Real JSONL/prediction/model-command evaluation, metric aggregation, transcripts, and release gates. |
 | Checkpoint conversion | `src/fmops/checkpoint.py` | Checkpoint conversion manifests and optional file copy. |
 | Deployment validation | `src/fmops/deployment.py` | Latency, memory, throughput, and power envelope checks. |
 | Experiment tracking | `src/fmops/tracking.py` | Run manifests with artifacts, metrics, config refs, and environment. |
 | Plugin system | `src/fmops/plugins.py` | Local plugin discovery and loading. |
 | Production integration | `src/fmops/production.py` | External adapter planning, preflight checks, guarded execution, and audit reports. |
 | Dashboard | `src/fmops/dashboard.py` | Static HTML dashboard generation. |
-| Architecture implementation | `src/fmops/architecture_impl.py` | PyTorch reference implementations for ten model families. |
+| Architecture implementation | `src/fmops/architecture_impl.py` | PyTorch reference implementations for twenty model families. |
 
 ## Training Entry Points
 
@@ -346,11 +360,26 @@ PYTHONPATH=src python eval/run.py \
   --output artifacts/runs/evaluation_report.json
 ```
 
-The current runner emits deterministic synthetic metrics so the framework can be tested end to end. In production, replace the metric generator with adapters for real benchmark harnesses, judges, simulators, web-agent environments, robotics simulators, and car-side replay.
+The runner now performs real local evaluation over JSONL samples. By default it uses the smoke fixtures in `eval/smoke`, computes metrics, applies gates, and writes per-benchmark transcripts next to the report. To evaluate a real model or a precomputed prediction file:
+
+```bash
+PYTHONPATH=src python eval/run.py \
+  --samples-dir /path/to/eval-jsonl \
+  --predictions /path/to/predictions.jsonl \
+  --benchmark general_multilingual_core \
+  --output artifacts/runs/evaluation_report.json
+
+PYTHONPATH=src python eval/run.py \
+  --samples-dir /path/to/eval-jsonl \
+  --model-command "python serve_one_sample.py" \
+  --fail-on-gate
+```
+
+Each JSONL sample may contain `id`, `benchmark`, `dataset`, `prompt` or `question`, `answer` or `reference`, optional `choices`, optional `prediction`, and task-specific fields such as `expected_tool`, `reference_action`, `success`, `collision_free`, `prefill_ms`, `decode_tok_s`, `memory_gb`, and `power_w`.
 
 ## Evaluation Benchmark Catalog
 
-`configs/evaluation_suite.json` keeps the machine-readable benchmark groups, weights, metrics, cadence, and release gates. The catalog below is the human-readable benchmark directory to use when wiring real adapters. Public benchmarks are useful for comparability; production releases should also include private, contamination-screened, multilingual, multimodal, VLA, and car-side holdouts.
+`configs/evaluation_suite.json` keeps release benchmark groups, weights, metrics, cadence, and gates. `configs/benchmark_catalog.json` is the machine-readable comprehensive benchmark catalog with 100+ public benchmark entries, dimensions, modalities, metrics, harnesses, download links, and license notes. The table below is the human-readable directory to use when wiring external harnesses. Public benchmarks are useful for comparability; production releases should also include private, contamination-screened, multilingual, multimodal, VLA, and car-side holdouts.
 
 ### Evaluation Harnesses
 
@@ -417,12 +446,22 @@ PYTHONPATH=src python -m unittest discover -s tests -p "test_architecture_impl.p
 | MoE | `MoETransformerBlock`, `MoEFeedForward`, `TopKRouter` | Top-k routing, expert FFNs, auxiliary load-balance loss, attention + MoE residual block. | [GShard](https://arxiv.org/abs/2006.16668), [Switch Transformers](https://arxiv.org/abs/2101.03961), [Mixtral of Experts](https://arxiv.org/abs/2401.04088), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [tensorflow/lingvo GShard](https://github.com/tensorflow/lingvo/blob/master/lingvo/core/gshard_builder.py), [google-research/t5x](https://github.com/google-research/t5x), [mistralai/mistral-inference](https://github.com/mistralai/mistral-inference), [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3) |
 | Sparse / Linear Attention | `SparseLinearAttentionBlock`, `SlidingWindowAttention`, `CausalLinearAttention` | Causal sliding-window sparse attention plus ELU feature-map causal linear attention with a learnable mixing gate. | [Longformer](https://arxiv.org/abs/2004.05150), [BigBird](https://arxiv.org/abs/2007.14062), [Linear Transformers](https://arxiv.org/abs/2006.16236), [Performer](https://arxiv.org/abs/2009.14794) | [allenai/longformer](https://github.com/allenai/longformer), [google-research/bigbird](https://github.com/google-research/bigbird), [idiap/fast-transformers](https://github.com/idiap/fast-transformers), [google-research Performer](https://github.com/google-research/google-research/tree/master/performer) |
 | RNN-like Backbone | `RNNBackboneBlock`, `RecurrentTokenMixer` | Token-by-token recurrent state update, learned decay, gated state output, FFN residual block. | [RWKV](https://arxiv.org/abs/2305.13048), [RetNet](https://arxiv.org/abs/2307.08621), [Mamba](https://arxiv.org/abs/2312.00752) | [BlinkDL/RWKV-LM](https://github.com/BlinkDL/RWKV-LM), [microsoft/torchscale RetNet](https://github.com/microsoft/torchscale/blob/main/torchscale/architecture/retnet.py), [state-spaces/mamba](https://github.com/state-spaces/mamba) |
+| SSM / Selective Scan | `SelectiveStateSpaceBlock` | Mamba-style input-dependent decay, gated depthwise convolution, selective recurrent state, FFN residual block. | [Mamba](https://arxiv.org/abs/2312.00752), [Mamba-2](https://arxiv.org/abs/2405.21060), [VMamba](https://arxiv.org/abs/2401.10166), [MambaByte](https://arxiv.org/abs/2401.13660) | [state-spaces/mamba](https://github.com/state-spaces/mamba), [MzeroMiko/VMamba](https://github.com/MzeroMiko/VMamba), [goombalab/hydra](https://github.com/goombalab/hydra) |
+| Retention / RetNet | `RetentionBlock` | Multi-head decayed causal retention with attention-like parallel training behavior and recurrent-cache interpretation. | [Retentive Network](https://arxiv.org/abs/2307.08621), [TorchScale RetNet](https://github.com/microsoft/torchscale) | [microsoft/torchscale RetNet](https://github.com/microsoft/torchscale/blob/main/torchscale/architecture/retnet.py), [Jamie-Stirling/RetNet](https://github.com/Jamie-Stirling/RetNet), [syncdoth/RetNet](https://github.com/syncdoth/RetNet) |
+| Long Convolution | `LongConvolutionBlock` | Causal depthwise long convolution with gating and residual FFN, covering Hyena/H3-style attention replacement. | [Hyena Hierarchy](https://proceedings.mlr.press/v202/poli23a.html), [H3](https://arxiv.org/abs/2212.14052), [StripedHyena](https://arxiv.org/abs/2311.09431) | [HazyResearch/safari](https://github.com/HazyResearch/safari), [togethercomputer/stripedhyena](https://github.com/togethercomputer/stripedhyena) |
+| MLA / KV-Compressed Attention | `KVCompressedAttentionBlock` | GQA/MQA-style shared KV heads plus latent K/V compression to reduce decode cache and memory bandwidth. | [MQA](https://arxiv.org/abs/1911.02150), [GQA](https://arxiv.org/abs/2305.13245), [DeepSeek-V2 MLA](https://arxiv.org/abs/2405.04434), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3), [deepseek-ai/FlashMLA](https://github.com/deepseek-ai/FlashMLA), [huggingface/transformers GQA](https://github.com/huggingface/transformers) |
 | Hybrid Architecture | `HybridArchitectureModel` | Interleaves Transformer attention blocks with recurrent blocks under one causal LM head. | [Jamba](https://arxiv.org/abs/2403.19887), [Griffin / RecurrentGemma](https://arxiv.org/abs/2402.19427), [Mamba](https://arxiv.org/abs/2312.00752) | [huggingface/transformers Jamba](https://github.com/huggingface/transformers/tree/main/src/transformers/models/jamba), [google-deepmind/recurrentgemma](https://github.com/google-deepmind/recurrentgemma), [state-spaces/mamba](https://github.com/state-spaces/mamba) |
 | MTP | `MultiTokenPredictionModel` | Shared decoder trunk with multiple future-token prediction heads and offset-specific cross-entropy losses. | [Better & Faster LLMs via Multi-token Prediction](https://arxiv.org/abs/2404.19737), [Medusa](https://arxiv.org/abs/2401.10774), [DeepSeek-V3](https://arxiv.org/abs/2412.19437) | [FasterDecoding/Medusa](https://github.com/FasterDecoding/Medusa), [deepseek-ai/DeepSeek-V3](https://github.com/deepseek-ai/DeepSeek-V3), [vllm-project/vllm MTP issue](https://github.com/vllm-project/vllm/issues/12181) |
 | Latent Reasoning | `LatentReasoningModel` | Inserts learnable latent thought tokens into the sequence and hides those positions from visible-token loss. | [Coconut](https://arxiv.org/abs/2412.06769), [Quiet-STaR](https://arxiv.org/abs/2403.09629) | [facebookresearch/coconut](https://github.com/facebookresearch/coconut), [ezelikman/quiet-star](https://github.com/ezelikman/quiet-star) |
 | dLLM | `DiscreteDiffusionLanguageModel` | Discrete masked diffusion process, timestep embedding, bidirectional denoising Transformer, masked-token reconstruction loss. | [Diffusion-LM](https://arxiv.org/abs/2205.14217), [DiffuSeq](https://arxiv.org/abs/2210.08933), [LLaDA](https://arxiv.org/abs/2502.09992) | [XiangLi1999/Diffusion-LM](https://github.com/XiangLi1999/Diffusion-LM), [Shark-NLP/DiffuSeq](https://github.com/Shark-NLP/DiffuSeq), [ML-GSAI/LLaDA](https://github.com/ML-GSAI/LLaDA) |
 | Memory-augmented LLM | `MemoryAugmentedLM`, `MemoryAugmentedBlock`, `DifferentiableMemory` | Learned or external memory key-value bank, differentiable retrieval, gated memory fusion. | [RETRO](https://arxiv.org/abs/2112.04426), [Memorizing Transformers](https://arxiv.org/abs/2203.08913), [REALM](https://arxiv.org/abs/2002.08909), [MemGPT](https://arxiv.org/abs/2310.08560) | [lucidrains/RETRO-pytorch](https://github.com/lucidrains/RETRO-pytorch), [lucidrains/memorizing-transformers-pytorch](https://github.com/lucidrains/memorizing-transformers-pytorch), [google-research/language REALM](https://github.com/google-research/language/tree/master/language/realm), [letta-ai/letta](https://github.com/letta-ai/letta) |
+| Mixture-of-Depths | `MixtureOfDepthsModel` | Per-token depth router, capacity-limited optional blocks, straight-through routing mask, shared LM head. | [Mixture-of-Depths](https://arxiv.org/abs/2404.02258), [Adaptive Computation Time](https://arxiv.org/abs/1603.08983) | [kyegomez/Mixture-of-Depths](https://github.com/kyegomez/Mixture-of-Depths), [astramind-ai/Mixture-of-depths](https://github.com/astramind-ai/Mixture-of-depths) |
+| Test-Time Memory | `TestTimeMemoryModel` | Context-derived fast memory, learned memory bank, associative read, gated fusion into decoder hidden states. | [TTT](https://arxiv.org/abs/2407.04620), [Titans](https://arxiv.org/abs/2501.00663), [Memorizing Transformers](https://arxiv.org/abs/2203.08913) | [test-time-training/ttt-lm-pytorch](https://github.com/test-time-training/ttt-lm-pytorch), [test-time-training/ttt-lm-jax](https://github.com/test-time-training/ttt-lm-jax), [lucidrains/titans-pytorch](https://github.com/lucidrains/titans-pytorch) |
+| Token-free Byte-level LLM | `ByteLevelLanguageModel` | UTF-8/byte vocabulary, byte patch convolution, decoder backbone, byte-level LM loss. | [ByT5](https://arxiv.org/abs/2105.13626), [MEGABYTE](https://arxiv.org/abs/2305.07185), [MambaByte](https://arxiv.org/abs/2401.13660), [SpaceByte](https://arxiv.org/abs/2404.14408) | [google-research/byt5](https://github.com/google-research/byt5), [lucidrains/MEGABYTE-pytorch](https://github.com/lucidrains/MEGABYTE-pytorch), [kjslag/spacebyte](https://github.com/kjslag/spacebyte) |
 | Omni-modal Architecture | `OmniModalArchitecture` | Projects text, image, video, audio, and action inputs into a shared token space with modality embeddings and text/action heads. | [Chameleon](https://arxiv.org/abs/2405.09818), [Unified-IO 2](https://arxiv.org/abs/2312.17172), [ImageBind](https://arxiv.org/abs/2305.05665), [AnyGPT](https://arxiv.org/abs/2402.12226), [NExT-GPT](https://arxiv.org/abs/2309.05519) | [facebookresearch/chameleon](https://github.com/facebookresearch/chameleon), [allenai/unified-io-2](https://github.com/allenai/unified-io-2), [facebookresearch/ImageBind](https://github.com/facebookresearch/ImageBind), [OpenMOSS/AnyGPT](https://github.com/OpenMOSS/AnyGPT), [NExT-GPT/NExT-GPT](https://github.com/NExT-GPT/NExT-GPT) |
+| VLA / Robotics Transformer | `VLARoboticsTransformer` | Text/image/proprioception/action-history fusion with continuous action, discrete action, and success heads. | [RT-1](https://arxiv.org/abs/2212.06817), [RT-2](https://arxiv.org/abs/2307.15818), [OpenVLA](https://arxiv.org/abs/2406.09246), [Octo](https://arxiv.org/abs/2405.12213) | [google-research/robotics_transformer](https://github.com/google-research/robotics_transformer), [openvla/openvla](https://github.com/openvla/openvla), [octo-models/octo](https://github.com/octo-models/octo) |
+| JEPA / Latent World Model | `LatentWorldModel` | Action-conditioned latent predictive objective over context and target features, suitable for video/VLA world modeling. | [I-JEPA](https://arxiv.org/abs/2301.08243), [V-JEPA](https://arxiv.org/abs/2404.08471), [World Models](https://arxiv.org/abs/1803.10122), [DreamerV3](https://arxiv.org/abs/2301.04104) | [facebookresearch/ijepa](https://github.com/facebookresearch/ijepa), [facebookresearch/jepa](https://github.com/facebookresearch/jepa), [danijar/dreamerv3](https://github.com/danijar/dreamerv3) |
+| Neuromorphic / Spiking Backbone | `SpikingBackboneModel` | Leaky integrate-and-fire recurrent state with surrogate spike gradient, LM head for event/edge exploration. | [Spikformer](https://arxiv.org/abs/2209.15425), [SpikeGPT](https://arxiv.org/abs/2302.13939), [SpikingBERT](https://arxiv.org/abs/2308.10873) | [ZK-Zhou/spikformer](https://github.com/ZK-Zhou/spikformer), [Rydrgn/SpikeGPT](https://github.com/ridgerchu/SpikeGPT), [fangwei123456/spikingjelly](https://github.com/fangwei123456/spikingjelly) |
 | Reasoning-native Architecture | `ReasoningNativeArchitecture` | Shared decoder trunk with policy, verifier/process-reward, planner, and value heads. | [STaR](https://arxiv.org/abs/2203.14465), [Let's Verify Step by Step](https://arxiv.org/abs/2305.20050), [Training Verifiers](https://arxiv.org/abs/2110.14168), [DeepSeek-R1](https://arxiv.org/abs/2501.12948) | [ezelikman/STaR](https://github.com/ezelikman/STaR), [openai/prm800k](https://github.com/openai/prm800k), [openai/grade-school-math](https://github.com/openai/grade-school-math), [deepseek-ai/DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1), [huggingface/open-r1](https://github.com/huggingface/open-r1) |
 
 Minimal model example:

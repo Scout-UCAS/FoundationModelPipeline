@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -16,13 +17,21 @@ from fmops.pipeline import load_platform
 
 def command_for_harness(harness: str, model_id: str, benchmark: str, output: Path) -> str:
     if harness == "lm-eval":
-        return f"lm_eval --model hf --model_args pretrained={model_id} --tasks {benchmark} --output_path {output}"
+        return f"lm_eval --model hf --model_args pretrained={shlex.quote(model_id)} --tasks {shlex.quote(benchmark)} --output_path {shlex.quote(str(output))}"
     if harness == "vlmevalkit":
-        return f"vlm_eval --model {model_id} --data {benchmark} --work-dir {output.parent}"
+        return f"vlm_eval --model {shlex.quote(model_id)} --data {shlex.quote(benchmark)} --work-dir {shlex.quote(str(output.parent))}"
     if harness == "opencompass":
-        return f"opencompass --models {model_id} --datasets {benchmark} --work-dir {output.parent}"
+        return f"opencompass --models {shlex.quote(model_id)} --datasets {shlex.quote(benchmark)} --work-dir {shlex.quote(str(output.parent))}"
     if harness == "simulator":
-        return f"{sys.executable} -m fmops.cli eval-run --model-id {model_id} --output {output}"
+        selectors = " ".join(
+            f"--benchmark {shlex.quote(item.strip())}"
+            for item in benchmark.split(",")
+            if item.strip()
+        )
+        return (
+            f"{shlex.quote(sys.executable)} -m fmops.cli eval-run "
+            f"--model-id {shlex.quote(model_id)} {selectors} --output {shlex.quote(str(output))}"
+        )
     raise ValueError(f"unsupported harness: {harness}")
 
 
@@ -30,8 +39,8 @@ def build_payload(config_dir: Path, model_id: str, benchmark: str, harness: str,
     platform = load_platform(config_dir)
     selected = {item.strip() for item in benchmark.split(",") if item.strip()}
     configured = [item for item in platform.evaluation.benchmarks if item.name in selected or item.dimension in selected]
-    synthetic = EvaluationRunner(platform.evaluation).run(model_id=model_id)
-    synthetic_by_name = {item.benchmark: item for item in synthetic}
+    local_smoke = EvaluationRunner(platform.evaluation).run(model_id=model_id)
+    local_smoke_by_name = {item.benchmark: item for item in local_smoke}
     return {
         "job": "evaluation_launch",
         "harness": harness,
@@ -46,7 +55,7 @@ def build_payload(config_dir: Path, model_id: str, benchmark: str, harness: str,
                 "datasets": item.datasets,
                 "metrics": item.metrics,
                 "gate": item.gate,
-                "synthetic_smoke_result": synthetic_by_name[item.name].metrics,
+                "local_smoke_result": local_smoke_by_name[item.name].metrics,
             }
             for item in configured
         ],

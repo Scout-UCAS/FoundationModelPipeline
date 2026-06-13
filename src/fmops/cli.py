@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .checkpoint import CheckpointConverter
+from .benchmark_catalog import BenchmarkCatalog
 from .dashboard import DashboardBuilder
 from .data_pipeline import DataPipelineRunner
 from .dataset_catalog import DatasetCatalog
@@ -47,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
     eval_run_parser = subparsers.add_parser("eval-run", help="Run configured evaluation suite and write JSON report")
     eval_run_parser.add_argument("--model-id", default="reference-model")
     eval_run_parser.add_argument("--output", default="artifacts/runs/evaluation_report.json")
+    eval_run_parser.add_argument("--samples-dir", help="Directory of JSONL evaluation samples")
+    eval_run_parser.add_argument("--predictions", help="JSON/JSONL prediction file keyed by sample id")
+    eval_run_parser.add_argument("--model-command", help="External command that reads one sample JSON from stdin")
+    eval_run_parser.add_argument("--model-endpoint", help="HTTP endpoint that accepts one sample JSON per request")
+    eval_run_parser.add_argument("--benchmark", action="append", help="Benchmark name or dimension to evaluate")
+    eval_run_parser.add_argument("--fail-on-gate", action="store_true", help="Return non-zero if any gate fails")
 
     deploy_parser = subparsers.add_parser("deploy-check", help="Run deployment envelope checks")
     deploy_parser.add_argument("--output", default="artifacts/runs/deployment_report.json")
@@ -64,6 +71,11 @@ def build_parser() -> argparse.ArgumentParser:
     track_parser.add_argument("--root", default="artifacts/runs")
 
     subparsers.add_parser("plugins", help="List and validate local plugins")
+
+    benchmark_parser = subparsers.add_parser("benchmarks", help="Print benchmark catalog summary or entries")
+    benchmark_parser.add_argument("--dimension", help="Filter by evaluation dimension")
+    benchmark_parser.add_argument("--modality", help="Filter by modality")
+    benchmark_parser.add_argument("--harness", help="Filter by harness")
 
     dashboard_parser = subparsers.add_parser("dashboard", help="Generate a static HTML dashboard")
     dashboard_parser.add_argument("--output", default="reports/dashboard.html")
@@ -161,8 +173,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "eval-run":
-        path = EvaluationRunner(platform.evaluation).write_report(args.output, model_id=args.model_id)
+        path = EvaluationRunner(
+            platform.evaluation,
+            samples_dir=args.samples_dir,
+            predictions_path=args.predictions,
+            model_command=args.model_command,
+            model_endpoint=args.model_endpoint,
+            benchmark_filter=set(args.benchmark or []),
+        ).write_report(args.output, model_id=args.model_id)
         print(f"Wrote {path}")
+        if args.fail_on_gate:
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            return 1 if payload["summary"]["failed"] else 0
         return 0
 
     if args.command == "deploy-check":
@@ -202,6 +224,25 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 1 if issues else 0
+
+    if args.command == "benchmarks":
+        catalog = BenchmarkCatalog.from_file(Path(args.config_dir) / "benchmark_catalog.json")
+        issues = catalog.validate()
+        if issues:
+            print(json.dumps({"issues": issues}, indent=2, ensure_ascii=False))
+            return 1
+        entries = catalog.filter(dimension=args.dimension, modality=args.modality, harness=args.harness)
+        print(
+            json.dumps(
+                {
+                    "summary": catalog.summary(),
+                    "benchmarks": [entry.__dict__ for entry in entries],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
 
     if args.command == "dashboard":
         path = DashboardBuilder(platform).write(args.output)

@@ -1,0 +1,1 @@
+{"id":"multimodal-001","benchmark":"multimodal_understanding_core","dataset":"TextVQA","prompt":"Image OCR says: CAT. What word is shown?","answer":"cat","prediction":"cat","temporal_reasoning":1.0}

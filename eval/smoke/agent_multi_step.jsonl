@@ -1,0 +1,1 @@
+{"id":"agent-001","benchmark":"agent_multi_step","dataset":"WebArena","prompt":"Find the invoice page and download the latest invoice.","prediction":"completed","success":true,"steps":5,"unsafe_action":false,"cost":1.25}

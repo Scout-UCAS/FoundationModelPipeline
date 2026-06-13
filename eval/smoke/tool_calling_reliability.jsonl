@@ -1,0 +1,1 @@
+{"id":"tool-001","benchmark":"tool_calling_reliability","dataset":"Berkeley Function Calling Leaderboard","prompt":"Call the weather tool for Shanghai.","expected_tool":"weather","expected_arguments":{"city":"Shanghai"},"prediction":"{\"tool\":\"weather\",\"arguments\":{\"city\":\"Shanghai\"}}","success":true,"tool_error":false}

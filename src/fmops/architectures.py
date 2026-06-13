@@ -11,12 +11,22 @@ DEFAULT_REQUIRED_FAMILIES = (
     "MoE",
     "Sparse / Linear Attention",
     "RNN-like Backbone",
+    "SSM / Selective Scan",
+    "Retention / RetNet",
+    "Long Convolution",
+    "MLA / KV-Compressed Attention",
     "Hybrid Architecture",
     "MTP",
     "Latent Reasoning",
     "dLLM",
     "Memory-augmented LLM",
+    "Mixture-of-Depths",
+    "Test-Time Memory",
+    "Token-free Byte-level LLM",
     "Omni-modal Architecture",
+    "VLA / Robotics Transformer",
+    "JEPA / Latent World Model",
+    "Neuromorphic / Spiking Backbone",
     "Reasoning-native Architecture",
 )
 
@@ -170,4 +180,3 @@ class ArchitectureSuite:
                 f"{row['stability_score']:.2f} | {row['utility_score']:.3f} |"
             )
         return "\n".join(lines)
-

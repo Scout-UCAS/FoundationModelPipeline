@@ -313,6 +313,149 @@ class RNNBackboneBlock(nn.Module):
         return x + self.ffn(self.norm_ffn(x)), state
 
 
+class SelectiveStateSpaceBlock(nn.Module):
+    def __init__(self, config: ModelConfig, conv_kernel: int = 3) -> None:
+        super().__init__()
+        if conv_kernel < 1:
+            raise ValueError("conv_kernel must be positive")
+        self.norm = RMSNorm(config.d_model)
+        self.in_proj = nn.Linear(config.d_model, 4 * config.d_model, bias=False)
+        self.depthwise_conv = nn.Conv1d(
+            config.d_model,
+            config.d_model,
+            kernel_size=conv_kernel,
+            padding=conv_kernel - 1,
+            groups=config.d_model,
+            bias=False,
+        )
+        self.state_decay = nn.Parameter(torch.full((config.d_model,), -2.0))
+        self.out_proj = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.norm_ffn = RMSNorm(config.d_model)
+        self.ffn = SwiGLUFeedForward(config.d_model, config.d_ff, config.dropout)
+
+    def forward(self, x: Tensor, initial_state: Tensor | None = None) -> tuple[Tensor, Tensor]:
+        residual = x
+        u, gate, delta, skip = self.in_proj(self.norm(x)).chunk(4, dim=-1)
+        conv = self.depthwise_conv(u.transpose(1, 2)).transpose(1, 2)[:, : x.size(1)]
+        state = x.new_zeros(x.size(0), x.size(-1)) if initial_state is None else initial_state
+        outputs = []
+        for step in range(x.size(1)):
+            decay = torch.sigmoid(delta[:, step] + self.state_decay)
+            state = decay * state + (1.0 - decay) * torch.tanh(conv[:, step])
+            outputs.append(torch.sigmoid(gate[:, step]) * state + skip[:, step])
+        mixed = self.out_proj(torch.stack(outputs, dim=1))
+        x = residual + mixed
+        return x + self.ffn(self.norm_ffn(x)), state
+
+
+class RetentionBlock(nn.Module):
+    def __init__(self, config: ModelConfig, decay_min: float = 0.80, decay_max: float = 0.99) -> None:
+        super().__init__()
+        if config.d_model % config.n_heads != 0:
+            raise ValueError("d_model must be divisible by n_heads")
+        self.d_model = config.d_model
+        self.n_heads = config.n_heads
+        self.head_dim = config.d_model // config.n_heads
+        self.qkv = nn.Linear(config.d_model, 3 * config.d_model, bias=False)
+        self.out = nn.Linear(config.d_model, config.d_model, bias=False)
+        decays = torch.linspace(decay_min, decay_max, config.n_heads)
+        self.log_decay = nn.Parameter(torch.log(decays))
+        self.norm = RMSNorm(config.d_model)
+        self.norm_ffn = RMSNorm(config.d_model)
+        self.ffn = SwiGLUFeedForward(config.d_model, config.d_ff, config.dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        residual = x
+        batch, seq_len, _ = x.shape
+        qkv = self.qkv(self.norm(x)).view(batch, seq_len, 3, self.n_heads, self.head_dim)
+        q, k, v = qkv.unbind(dim=2)
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * (self.head_dim**-0.5)
+        positions = torch.arange(seq_len, device=x.device)
+        distance = positions[:, None] - positions[None, :]
+        causal = distance >= 0
+        decay = torch.exp(self.log_decay).clamp(0.01, 0.999).view(1, self.n_heads, 1, 1)
+        retention = decay.pow(distance.clamp_min(0).view(1, 1, seq_len, seq_len))
+        scores = scores * retention
+        scores = scores.masked_fill(~causal.view(1, 1, seq_len, seq_len), torch.finfo(scores.dtype).min)
+        weights = F.softmax(scores.float(), dim=-1).to(dtype=x.dtype)
+        y = torch.matmul(weights, v).transpose(1, 2).contiguous().view(batch, seq_len, self.d_model)
+        x = residual + self.out(y)
+        return x + self.ffn(self.norm_ffn(x))
+
+
+class LongConvolutionBlock(nn.Module):
+    def __init__(self, config: ModelConfig, kernel_size: int = 31) -> None:
+        super().__init__()
+        if kernel_size < 1:
+            raise ValueError("kernel_size must be positive")
+        self.kernel_size = kernel_size
+        self.norm = RMSNorm(config.d_model)
+        self.in_proj = nn.Linear(config.d_model, 2 * config.d_model, bias=False)
+        self.depthwise = nn.Conv1d(
+            config.d_model,
+            config.d_model,
+            kernel_size=kernel_size,
+            groups=config.d_model,
+            bias=False,
+        )
+        self.out_proj = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.norm_ffn = RMSNorm(config.d_model)
+        self.ffn = SwiGLUFeedForward(config.d_model, config.d_ff, config.dropout)
+
+    def forward(self, x: Tensor) -> Tensor:
+        residual = x
+        value, gate = self.in_proj(self.norm(x)).chunk(2, dim=-1)
+        padded = F.pad(value.transpose(1, 2), (self.kernel_size - 1, 0))
+        mixed = self.depthwise(padded).transpose(1, 2)
+        x = residual + self.out_proj(torch.sigmoid(gate) * mixed)
+        return x + self.ffn(self.norm_ffn(x))
+
+
+class KVCompressedAttentionBlock(nn.Module):
+    def __init__(self, config: ModelConfig, kv_heads: int | None = None, latent_dim: int | None = None) -> None:
+        super().__init__()
+        if config.d_model % config.n_heads != 0:
+            raise ValueError("d_model must be divisible by n_heads")
+        self.d_model = config.d_model
+        self.n_heads = config.n_heads
+        self.head_dim = config.d_model // config.n_heads
+        self.kv_heads = kv_heads or max(1, config.n_heads // 4)
+        if config.n_heads % self.kv_heads != 0:
+            raise ValueError("n_heads must be divisible by kv_heads")
+        self.latent_dim = latent_dim or max(self.head_dim, config.d_model // 4)
+        self.norm = RMSNorm(config.d_model)
+        self.q_proj = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.kv_down = nn.Linear(config.d_model, self.latent_dim, bias=False)
+        self.k_up = nn.Linear(self.latent_dim, self.kv_heads * self.head_dim, bias=False)
+        self.v_up = nn.Linear(self.latent_dim, self.kv_heads * self.head_dim, bias=False)
+        self.out = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.norm_ffn = RMSNorm(config.d_model)
+        self.ffn = SwiGLUFeedForward(config.d_model, config.d_ff, config.dropout)
+
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
+        residual = x
+        batch, seq_len, _ = x.shape
+        z = self.norm(x)
+        q = self.q_proj(z).view(batch, seq_len, self.n_heads, self.head_dim).transpose(1, 2)
+        latent_kv = self.kv_down(z)
+        k = self.k_up(latent_kv).view(batch, seq_len, self.kv_heads, self.head_dim).transpose(1, 2)
+        v = self.v_up(latent_kv).view(batch, seq_len, self.kv_heads, self.head_dim).transpose(1, 2)
+        repeat = self.n_heads // self.kv_heads
+        k = k.repeat_interleave(repeat, dim=1)
+        v = v.repeat_interleave(repeat, dim=1)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * (self.head_dim**-0.5)
+        causal = torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device).tril()
+        scores = scores.masked_fill(~causal, torch.finfo(scores.dtype).min)
+        weights = F.softmax(scores.float(), dim=-1).to(dtype=x.dtype)
+        y = torch.matmul(weights, v).transpose(1, 2).contiguous().view(batch, seq_len, self.d_model)
+        hidden = residual + self.out(y)
+        hidden = hidden + self.ffn(self.norm_ffn(hidden))
+        return {"hidden": hidden, "latent_kv": latent_kv}
+
+
 class HybridArchitectureModel(nn.Module):
     def __init__(self, config: ModelConfig, attention_every: int = 4) -> None:
         super().__init__()
@@ -722,16 +865,309 @@ class ReasoningNativeArchitecture(nn.Module):
         return output
 
 
+class MixtureOfDepthsModel(nn.Module):
+    def __init__(self, config: ModelConfig, capacity_ratio: float = 0.5) -> None:
+        super().__init__()
+        if not 0.0 < capacity_ratio <= 1.0:
+            raise ValueError("capacity_ratio must be in (0, 1]")
+        self.config = config
+        self.capacity_ratio = capacity_ratio
+        self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
+        self.pos_emb = nn.Embedding(config.max_seq_len, config.d_model)
+        self.base_blocks = nn.ModuleList(TransformerBlock(config, causal=True) for _ in range(config.n_layers))
+        self.deep_blocks = nn.ModuleList(TransformerBlock(config, causal=True) for _ in range(config.n_layers))
+        self.routers = nn.ModuleList(nn.Linear(config.d_model, 1) for _ in range(config.n_layers))
+        self.norm = RMSNorm(config.d_model)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
+    def forward(self, input_ids: Tensor, labels: Tensor | None = None) -> dict[str, Tensor]:
+        batch, seq_len = input_ids.shape
+        if seq_len > self.config.max_seq_len:
+            raise ValueError(f"sequence length {seq_len} exceeds max_seq_len {self.config.max_seq_len}")
+        positions = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch, seq_len)
+        x = self.token_emb(input_ids) + self.pos_emb(positions)
+        router_scores = []
+        for base, deep, router in zip(self.base_blocks, self.deep_blocks, self.routers):
+            x = base(x)
+            scores = torch.sigmoid(router(x))
+            budget = max(1, int(seq_len * self.capacity_ratio))
+            topk = torch.topk(scores.squeeze(-1), budget, dim=1).indices
+            hard_mask = torch.zeros(batch, seq_len, 1, device=x.device, dtype=x.dtype)
+            hard_mask.scatter_(1, topk.unsqueeze(-1), 1.0)
+            mask = hard_mask + scores - scores.detach()
+            x = x + mask * (deep(x) - x)
+            router_scores.append(scores.squeeze(-1))
+        hidden = self.norm(x)
+        logits = self.lm_head(hidden)
+        output = {"logits": logits, "hidden": hidden, "router_scores": torch.stack(router_scores)}
+        if labels is not None:
+            output["loss"] = F.cross_entropy(
+                logits[:, :-1].reshape(-1, logits.size(-1)),
+                labels[:, 1:].reshape(-1),
+                ignore_index=-100,
+            )
+        return output
+
+
+class TestTimeMemoryModel(nn.Module):
+    def __init__(self, config: ModelConfig, memory_slots: int = 16) -> None:
+        super().__init__()
+        self.config = config
+        self.backbone = DecoderBackbone(config, causal=True)
+        self.memory = DifferentiableMemory(config.d_model, memory_slots=memory_slots)
+        self.fast_key = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.fast_value = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.memory_gate = nn.Linear(config.d_model, config.d_model)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
+    def build_fast_memory(self, hidden: Tensor) -> Tensor:
+        keys = self.fast_key(hidden)
+        values = self.fast_value(hidden)
+        weights = F.softmax(torch.matmul(keys, keys.transpose(-2, -1)) * (hidden.size(-1) ** -0.5), dim=-1)
+        return torch.matmul(weights, values)
+
+    def forward(
+        self,
+        input_ids: Tensor,
+        labels: Tensor | None = None,
+        external_memory: Tensor | None = None,
+        update_memory: bool = True,
+    ) -> dict[str, Tensor]:
+        hidden = self.backbone(input_ids)
+        fast_memory = self.build_fast_memory(hidden).detach() if update_memory else None
+        memory_source = external_memory if external_memory is not None else fast_memory
+        memory_read, memory_weights = self.memory(hidden, external_memory=memory_source)
+        hidden = hidden + torch.sigmoid(self.memory_gate(hidden)) * memory_read
+        logits = self.lm_head(hidden)
+        output = {
+            "logits": logits,
+            "hidden": hidden,
+            "memory_weights": memory_weights,
+            "fast_memory": fast_memory if fast_memory is not None else hidden.new_zeros(hidden.shape),
+        }
+        if labels is not None:
+            output["loss"] = F.cross_entropy(
+                logits[:, :-1].reshape(-1, logits.size(-1)),
+                labels[:, 1:].reshape(-1),
+                ignore_index=-100,
+            )
+        return output
+
+
+class ByteLevelLanguageModel(nn.Module):
+    def __init__(self, config: ModelConfig, byte_vocab_size: int = 260, patch_size: int = 4) -> None:
+        super().__init__()
+        if patch_size < 1:
+            raise ValueError("patch_size must be positive")
+        self.config = config
+        self.byte_vocab_size = max(byte_vocab_size, config.vocab_size)
+        self.patch_size = patch_size
+        byte_config = ModelConfig(
+            vocab_size=self.byte_vocab_size,
+            d_model=config.d_model,
+            n_heads=config.n_heads,
+            n_layers=config.n_layers,
+            d_ff=config.d_ff,
+            max_seq_len=config.max_seq_len,
+            dropout=config.dropout,
+        )
+        self.byte_emb = nn.Embedding(self.byte_vocab_size, config.d_model)
+        self.patch_mixer = nn.Conv1d(
+            config.d_model,
+            config.d_model,
+            kernel_size=patch_size,
+            padding=patch_size - 1,
+            groups=config.d_model,
+            bias=False,
+        )
+        self.backbone = DecoderBackbone(byte_config, causal=True)
+        self.lm_head = nn.Linear(config.d_model, self.byte_vocab_size, bias=False)
+
+    def forward(self, input_ids: Tensor, labels: Tensor | None = None) -> dict[str, Tensor]:
+        input_ids = input_ids.clamp(0, self.byte_vocab_size - 1)
+        patch = self.patch_mixer(self.byte_emb(input_ids).transpose(1, 2)).transpose(1, 2)[:, : input_ids.size(1)]
+        hidden = self.backbone(input_ids) + patch
+        logits = self.lm_head(hidden)
+        output = {"logits": logits, "hidden": hidden}
+        if labels is not None:
+            labels = labels.clamp(0, self.byte_vocab_size - 1)
+            output["loss"] = F.cross_entropy(
+                logits[:, :-1].reshape(-1, logits.size(-1)),
+                labels[:, 1:].reshape(-1),
+                ignore_index=-100,
+            )
+        return output
+
+
+class VLARoboticsTransformer(nn.Module):
+    def __init__(
+        self,
+        config: ModelConfig,
+        image_dim: int = 1024,
+        proprio_dim: int = 32,
+        action_dim: int = 7,
+        action_bins: int = 256,
+    ) -> None:
+        super().__init__()
+        self.config = config
+        self.action_dim = action_dim
+        self.text_emb = nn.Embedding(config.vocab_size, config.d_model)
+        self.image_proj = nn.Linear(image_dim, config.d_model)
+        self.proprio_proj = nn.Linear(proprio_dim, config.d_model)
+        self.action_emb = nn.Linear(action_dim, config.d_model)
+        self.modality_emb = nn.Embedding(4, config.d_model)
+        self.pos_emb = nn.Embedding(config.max_seq_len, config.d_model)
+        self.blocks = nn.ModuleList(TransformerBlock(config, causal=True) for _ in range(config.n_layers))
+        self.norm = RMSNorm(config.d_model)
+        self.action_head = nn.Linear(config.d_model, action_dim)
+        self.discrete_action_head = nn.Linear(config.d_model, action_dim * action_bins)
+        self.success_head = nn.Linear(config.d_model, 1)
+        self.action_bins = action_bins
+
+    def _with_modality(self, x: Tensor, modality_id: int) -> Tensor:
+        return x + self.modality_emb.weight[modality_id].view(1, 1, -1)
+
+    def forward(
+        self,
+        input_ids: Tensor | None = None,
+        image_features: Tensor | None = None,
+        proprioception: Tensor | None = None,
+        action_history: Tensor | None = None,
+        action_labels: Tensor | None = None,
+    ) -> dict[str, Tensor]:
+        pieces = []
+        if input_ids is not None:
+            pieces.append(self._with_modality(self.text_emb(input_ids), 0))
+        if image_features is not None:
+            pieces.append(self._with_modality(self.image_proj(image_features), 1))
+        if proprioception is not None:
+            pieces.append(self._with_modality(self.proprio_proj(proprioception), 2))
+        if action_history is not None:
+            pieces.append(self._with_modality(self.action_emb(action_history), 3))
+        if not pieces:
+            raise ValueError("at least one VLA input must be provided")
+        batch = pieces[0].size(0)
+        x = torch.cat(pieces, dim=1)
+        if x.size(1) > self.config.max_seq_len:
+            raise ValueError(f"packed VLA length {x.size(1)} exceeds max_seq_len {self.config.max_seq_len}")
+        positions = torch.arange(x.size(1), device=x.device).unsqueeze(0).expand(batch, x.size(1))
+        x = x + self.pos_emb(positions)
+        for block in self.blocks:
+            x = block(x)
+        hidden = self.norm(x)
+        pooled = hidden[:, -1]
+        action = self.action_head(pooled)
+        output = {
+            "hidden": hidden,
+            "action": action,
+            "action_logits": self.discrete_action_head(pooled).view(batch, self.action_dim, self.action_bins),
+            "success_logits": self.success_head(pooled).squeeze(-1),
+        }
+        if action_labels is not None:
+            output["loss"] = F.mse_loss(action, action_labels)
+        return output
+
+
+class LatentWorldModel(nn.Module):
+    def __init__(self, config: ModelConfig, latent_dim: int | None = None, action_dim: int = 7) -> None:
+        super().__init__()
+        self.config = config
+        self.latent_dim = latent_dim or config.d_model
+        self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
+        self.context_proj = nn.Linear(config.d_model, self.latent_dim)
+        self.action_proj = nn.Linear(action_dim, self.latent_dim)
+        self.predictor = nn.Sequential(
+            RMSNorm(self.latent_dim),
+            nn.Linear(self.latent_dim, 4 * self.latent_dim),
+            nn.GELU(),
+            nn.Linear(4 * self.latent_dim, self.latent_dim),
+        )
+        self.target_proj = nn.Linear(config.d_model, self.latent_dim)
+
+    def forward(
+        self,
+        input_ids: Tensor | None = None,
+        context_features: Tensor | None = None,
+        target_features: Tensor | None = None,
+        actions: Tensor | None = None,
+    ) -> dict[str, Tensor]:
+        if context_features is None:
+            if input_ids is None:
+                raise ValueError("input_ids or context_features must be provided")
+            context_features = self.token_emb(input_ids)
+        context_latent = self.context_proj(context_features).mean(dim=1)
+        if actions is not None:
+            context_latent = context_latent + self.action_proj(actions)
+        predicted = self.predictor(context_latent)
+        output = {"predicted_latent": predicted, "context_latent": context_latent}
+        if target_features is not None:
+            target = self.target_proj(target_features).mean(dim=1).detach()
+            output["target_latent"] = target
+            output["loss"] = 1.0 - F.cosine_similarity(predicted, target, dim=-1).mean()
+        return output
+
+
+class SpikingBackboneModel(nn.Module):
+    def __init__(self, config: ModelConfig, threshold: float = 1.0, decay: float = 0.75) -> None:
+        super().__init__()
+        self.config = config
+        self.threshold = threshold
+        self.decay = decay
+        self.token_emb = nn.Embedding(config.vocab_size, config.d_model)
+        self.pos_emb = nn.Embedding(config.max_seq_len, config.d_model)
+        self.in_proj = nn.Linear(config.d_model, config.d_model)
+        self.recurrent = nn.Linear(config.d_model, config.d_model, bias=False)
+        self.norm = RMSNorm(config.d_model)
+        self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
+
+    def forward(self, input_ids: Tensor, labels: Tensor | None = None) -> dict[str, Tensor]:
+        batch, seq_len = input_ids.shape
+        if seq_len > self.config.max_seq_len:
+            raise ValueError(f"sequence length {seq_len} exceeds max_seq_len {self.config.max_seq_len}")
+        positions = torch.arange(seq_len, device=input_ids.device).unsqueeze(0).expand(batch, seq_len)
+        x = self.token_emb(input_ids) + self.pos_emb(positions)
+        membrane = x.new_zeros(batch, self.config.d_model)
+        spike = x.new_zeros(batch, self.config.d_model)
+        outputs = []
+        for step in range(seq_len):
+            membrane = self.decay * membrane + self.in_proj(x[:, step]) + self.recurrent(spike)
+            hard_spike = (membrane > self.threshold).to(dtype=x.dtype)
+            surrogate = torch.sigmoid(8.0 * (membrane - self.threshold))
+            spike = hard_spike + surrogate - surrogate.detach()
+            membrane = membrane * (1.0 - hard_spike)
+            outputs.append(spike)
+        hidden = self.norm(torch.stack(outputs, dim=1))
+        logits = self.lm_head(hidden)
+        output = {"logits": logits, "hidden": hidden, "spike_rate": hidden.abs().mean()}
+        if labels is not None:
+            output["loss"] = F.cross_entropy(
+                logits[:, :-1].reshape(-1, logits.size(-1)),
+                labels[:, 1:].reshape(-1),
+                ignore_index=-100,
+            )
+        return output
+
+
 REFERENCE_IMPLEMENTATIONS = {
     "MoE": MoETransformerBlock,
     "Sparse / Linear Attention": SparseLinearAttentionBlock,
     "RNN-like Backbone": RNNBackboneBlock,
+    "SSM / Selective Scan": SelectiveStateSpaceBlock,
+    "Retention / RetNet": RetentionBlock,
+    "Long Convolution": LongConvolutionBlock,
+    "MLA / KV-Compressed Attention": KVCompressedAttentionBlock,
     "Hybrid Architecture": HybridArchitectureModel,
     "MTP": MultiTokenPredictionModel,
     "Latent Reasoning": LatentReasoningModel,
     "dLLM": DiscreteDiffusionLanguageModel,
     "Memory-augmented LLM": MemoryAugmentedLM,
+    "Mixture-of-Depths": MixtureOfDepthsModel,
+    "Test-Time Memory": TestTimeMemoryModel,
+    "Token-free Byte-level LLM": ByteLevelLanguageModel,
     "Omni-modal Architecture": OmniModalArchitecture,
+    "VLA / Robotics Transformer": VLARoboticsTransformer,
+    "JEPA / Latent World Model": LatentWorldModel,
+    "Neuromorphic / Spiking Backbone": SpikingBackboneModel,
     "Reasoning-native Architecture": ReasoningNativeArchitecture,
 }
 
@@ -742,4 +1178,3 @@ def build_reference_implementation(family: str, config: ModelConfig, **kwargs: A
     except KeyError as exc:
         raise ValueError(f"unknown architecture family: {family}") from exc
     return cls(config, **kwargs)
-

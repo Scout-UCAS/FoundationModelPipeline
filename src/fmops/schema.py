@@ -95,6 +95,14 @@ SCHEMAS: dict[str, ObjectSchema] = {
             SchemaField("datasets", list),
         ),
     ),
+    "benchmark_catalog": ObjectSchema(
+        "benchmark_catalog",
+        "1.0",
+        (
+            SchemaField("version", str),
+            SchemaField("benchmarks", list),
+        ),
+    ),
     "production_integration": ObjectSchema(
         "production_integration",
         "1.0",
@@ -134,6 +142,7 @@ def validate_config_dir(config_dir: str | Path) -> dict[str, list[str]]:
         "training_pipeline": base / "training_pipeline.json",
         "evaluation_suite": base / "evaluation_suite.json",
         "datasets_catalog": base / "datasets_catalog.json",
+        "benchmark_catalog": base / "benchmark_catalog.json",
         "production_integration": base / "production_integration.json",
     }
     return {

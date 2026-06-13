@@ -1,0 +1,1 @@
+{"id":"edge-001","benchmark":"car_side_deployment_efficiency","dataset":"GenAI-Perf","prompt":"Replay streaming VLA serving profile.","prediction":"ready","prefill_ms":22.0,"decode_tok_s":45.0,"memory_gb":7.5,"power_w":42.0,"frame_action_latency_ms":35.0}
