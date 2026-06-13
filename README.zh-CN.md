@@ -3,7 +3,7 @@
 这个工程把“下一代基础模型研发平台”的四块能力落成可运行的控制面：
 
 1. 大规模训练数据体系：统一描述开源数据、新采集数据、业务数据，覆盖纯文本、多模态、视频预训练和 VLA 数据，内置清洗、去重、聚类、质量评估和多阶段配比校验。
-2. 下一代模型结构实验：在统一 tokenizer、训练 token、上下文长度、优化器和 GPU 预算下，对 MoE、Sparse / Linear Attention、RNN-like Backbone、Hybrid、MTP、Latent Reasoning、dLLM、Memory-augmented、Omni-modal、Reasoning-native 等候选做公平对比。
+2. 下一代模型结构实验：在统一 tokenizer、训练 token、上下文长度、优化器和 GPU 预算下，对 MoE、Sparse / Linear Attention、RNN-like Backbone、SSM / Selective Scan、Retention / RetNet、Long Convolution、MLA / KV-Compressed Attention、Hybrid、MTP、Latent Reasoning、dLLM、Memory-augmented、Mixture-of-Depths、Test-Time Memory、Token-free Byte-level LLM、Omni-modal、VLA / Robotics Transformer、JEPA / Latent World Model、Neuromorphic / Spiking Backbone、Reasoning-native 等二十类候选做公平对比。
 3. 四百卡级训练 pipeline：覆盖 Pre-training、SFT、RL、Agentic RL，并把数据交接、分布式训练、稳定性监控、模型转换和部署验证写入统一配置。
 4. 全面评测体系：覆盖通用能力、推理、多模态理解、VLA、长上下文、工具调用、Agent 能力和车端部署效率。
 
@@ -16,6 +16,7 @@ PYTHONPATH=src python -m fmops.cli validate
 PYTHONPATH=src python -m fmops.cli schema-validate
 PYTHONPATH=src python -m fmops.cli registry
 PYTHONPATH=src python -m fmops.cli datasets --priority P0
+PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla
 PYTHONPATH=src python -m fmops.cli data-run
 PYTHONPATH=src python -m fmops.cli train-run --stage SFT
 PYTHONPATH=src python -m fmops.cli eval-run --model-id reference-model
@@ -100,6 +101,19 @@ make production-plan
 make production-check
 make dashboard
 ```
+
+## 实现覆盖矩阵
+
+| 需求模块 | 已实现的配置和代码 | 可运行入口 |
+| --- | --- | --- |
+| 2500T+ 大规模数据体系，覆盖开源、新采集和业务数据 | `configs/data_manifest.json`、`configs/datasets_catalog.json`、`src/fmops/data.py`、`src/fmops/data_pipeline.py`、`src/fmops/dataset_catalog.py`、`jobs/data_ingest.py`、`jobs/data_quality.py`、`jobs/data_mixture.py` | `fmops data-plan`、`fmops datasets`、`fmops data-run`、`production-plan --area data`、`production-check --area data` |
+| 清洗、去重、聚类、质量评估、lineage、污染检查和多阶段配比 | `configs/data_manifest.json` 中的数据操作图，`configs/production_integration.json` 中的生产数据任务，`DataPipelineRunner` 的 lineage artifact | `fmops data-run`、`python jobs/data_quality.py`、`python jobs/data_mixture.py`、受保护的 `production-run --area data` |
+| LLM/VLM/视频/VLA 数据集和下载链接 | 英文主 README、`README.zh-CN.md` 的数据目录，机器可读 `configs/datasets_catalog.json` | `fmops datasets --priority P0`、`fmops datasets --family VLA-robotics`、`fmops datasets --modality video` |
+| 二十类下一代模型结构和公平对比 | `configs/architecture_experiments.json`、`src/fmops/architecture_impl.py`、`src/fmops/architectures.py`、`src/fmops/registry.py`、`tests/test_architecture_impl.py` | `fmops registry`、`fmops arch-compare`、`python -m unittest discover -s tests -p "test_architecture_impl.py"` |
+| 四百卡 Pre-training、SFT、RL、Agentic RL 训练 pipeline | `configs/training_pipeline.json`、`src/fmops/training_runner.py`、`src/fmops/native_training.py`、`train/pretrain.py`、`train/sft.py`、`train/rl.py`、`train/agentic_rl.py`、`jobs/training_launch.py` | `fmops train-plan`、`fmops train-run`、快速开始里的 native smoke 命令、受保护的 `production-run --area training` |
+| 真实评测体系和 benchmark catalog | `configs/evaluation_suite.json`、`configs/benchmark_catalog.json`、`src/fmops/evaluation.py`、`src/fmops/evaluation_runner.py`、`src/fmops/benchmark_catalog.py`、`eval/run.py`、`eval/smoke/*`、`jobs/evaluation_launch.py` | `fmops eval-plan`、`fmops benchmarks`、`fmops eval-run`、`python eval/run.py --samples-dir ...`、受保护的 `production-run --area evaluation` |
+| Checkpoint 转换、部署验证、监控、治理和发布门禁 | `src/fmops/checkpoint.py`、`src/fmops/deployment.py`、`src/fmops/production.py`、`jobs/checkpoint_convert.py`、`jobs/deployment_validate.py`、`jobs/monitoring_export.py`、`jobs/release_gate.py` | `fmops checkpoint-convert`、`fmops deploy-check`、`fmops production-plan`、`fmops production-check`、受保护的 `fmops production-run` |
+| 成熟框架内核 | `src/fmops/schema.py`、`src/fmops/tracking.py`、`src/fmops/plugins.py`、`src/fmops/dashboard.py`、测试、CI、Makefile | `fmops schema-validate`、`fmops track-run`、`fmops plugins`、`fmops dashboard`、`make validate`、`make test` |
 
 ## 生产级接入
 

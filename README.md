@@ -15,8 +15,8 @@ The framework is intentionally lightweight: the core uses the Python standard li
    - The default manifest targets 2500T+ scale and 20+ languages.
 
 2. Architecture research and fair comparison
-   - Covers MoE, Sparse / Linear Attention, RNN-like Backbone, Hybrid Architecture, MTP, Latent Reasoning, dLLM, Memory-augmented LLM, Omni-modal Architecture, and Reasoning-native Architecture.
-   - Provides runnable PyTorch reference implementations for all ten families.
+   - Covers MoE, Sparse / Linear Attention, RNN-like Backbone, SSM / Selective Scan, Retention / RetNet, Long Convolution, MLA / KV-Compressed Attention, Hybrid Architecture, MTP, Latent Reasoning, dLLM, Memory-augmented LLM, Mixture-of-Depths, Test-Time Memory, Token-free Byte-level LLM, Omni-modal Architecture, VLA / Robotics Transformer, JEPA / Latent World Model, Neuromorphic / Spiking Backbone, and Reasoning-native Architecture.
+   - Provides runnable PyTorch reference implementations for all twenty families.
    - Keeps experiment setup, hardware budget, metrics, and ranking logic in one place.
 
 3. Four-hundred-GPU training pipeline
@@ -131,6 +131,8 @@ PYTHONPATH=src python -m fmops.cli registry
 PYTHONPATH=src python -m fmops.cli datasets --priority P0
 PYTHONPATH=src python -m fmops.cli datasets --family VLA-robotics
 PYTHONPATH=src python -m fmops.cli datasets --modality video
+PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla
+PYTHONPATH=src python -m fmops.cli benchmarks --harness lm-eval
 ```
 
 Generate dry-run artifacts:
@@ -216,6 +218,19 @@ make dashboard
 | `dashboard` | Generates a static HTML dashboard. | `reports/dashboard.html` |
 | `report` | Generates a Markdown program plan. | `reports/foundation_model_plan.md` |
 
+## Implementation Coverage Matrix
+
+| Requirement area | Implemented assets | Concrete runnable entry points |
+| --- | --- | --- |
+| 2500T+ data system across open-source, newly collected, and business data | `configs/data_manifest.json`, `configs/datasets_catalog.json`, `src/fmops/data.py`, `src/fmops/data_pipeline.py`, `src/fmops/dataset_catalog.py`, `jobs/data_ingest.py`, `jobs/data_quality.py`, `jobs/data_mixture.py` | `fmops data-plan`, `fmops datasets`, `fmops data-run`, `production-plan --area data`, `production-check --area data` |
+| Cleaning, deduplication, clustering, quality assessment, lineage, contamination checks, and staged mixture design | Data operation graph in `configs/data_manifest.json`; production adapter tasks in `configs/production_integration.json`; lineage artifacts from `DataPipelineRunner` | `fmops data-run`, `python jobs/data_quality.py`, `python jobs/data_mixture.py`, guarded `production-run --area data` |
+| LLM/VLM/video/VLA dataset documentation with download links | Human-readable directory in this README and `README.zh-CN.md`; machine-readable catalog in `configs/datasets_catalog.json` | `fmops datasets --priority P0`, `fmops datasets --family VLA-robotics`, `fmops datasets --modality video` |
+| Twenty next-generation architecture families with fair comparison | `configs/architecture_experiments.json`, `src/fmops/architecture_impl.py`, `src/fmops/architectures.py`, `src/fmops/registry.py`, `tests/test_architecture_impl.py` | `fmops registry`, `fmops arch-compare`, `python -m unittest discover -s tests -p "test_architecture_impl.py"` |
+| 400-GPU Pre-training, SFT, RL, and Agentic RL pipeline | `configs/training_pipeline.json`, `src/fmops/training_runner.py`, `src/fmops/native_training.py`, `train/pretrain.py`, `train/sft.py`, `train/rl.py`, `train/agentic_rl.py`, `jobs/training_launch.py` | `fmops train-plan`, `fmops train-run`, native smoke commands under "Quick Start", guarded `production-run --area training` |
+| Real evaluation system and benchmark catalog | `configs/evaluation_suite.json`, `configs/benchmark_catalog.json`, `src/fmops/evaluation.py`, `src/fmops/evaluation_runner.py`, `src/fmops/benchmark_catalog.py`, `eval/run.py`, `eval/smoke/*`, `jobs/evaluation_launch.py` | `fmops eval-plan`, `fmops benchmarks`, `fmops eval-run`, `python eval/run.py --samples-dir ...`, guarded `production-run --area evaluation` |
+| Checkpoint conversion, deployment validation, monitoring, governance, and release gates | `src/fmops/checkpoint.py`, `src/fmops/deployment.py`, `src/fmops/production.py`, `jobs/checkpoint_convert.py`, `jobs/deployment_validate.py`, `jobs/monitoring_export.py`, `jobs/release_gate.py` | `fmops checkpoint-convert`, `fmops deploy-check`, `fmops production-plan`, `fmops production-check`, guarded `fmops production-run` |
+| Framework maturity layer | `src/fmops/schema.py`, `src/fmops/tracking.py`, `src/fmops/plugins.py`, `src/fmops/dashboard.py`, tests, CI, Makefile targets | `fmops schema-validate`, `fmops track-run`, `fmops plugins`, `fmops dashboard`, `make validate`, `make test` |
+
 ## Configuration Files
 
 ### `configs/data_manifest.json`
@@ -247,7 +262,7 @@ Defines fair architecture experiments:
 - Context length.
 - Optimizer.
 - Hardware budget.
-- Required architecture families.
+- Required architecture families: MoE, Sparse / Linear Attention, RNN-like Backbone, SSM / Selective Scan, Retention / RetNet, Long Convolution, MLA / KV-Compressed Attention, Hybrid Architecture, MTP, Latent Reasoning, dLLM, Memory-augmented LLM, Mixture-of-Depths, Test-Time Memory, Token-free Byte-level LLM, Omni-modal Architecture, VLA / Robotics Transformer, JEPA / Latent World Model, Neuromorphic / Spiking Backbone, and Reasoning-native Architecture.
 - Candidate metrics: validation loss, throughput, reasoning score, GPU memory, stability.
 
 ### `configs/training_pipeline.json`
@@ -721,7 +736,7 @@ Current test coverage includes:
 - Schema validation.
 - Dataset catalog validation.
 - Model registry.
-- All ten PyTorch architecture families.
+- All twenty PyTorch architecture families.
 - Data, training, evaluation, and deployment runners.
 - Checkpoint manifest conversion.
 - Experiment tracking.
