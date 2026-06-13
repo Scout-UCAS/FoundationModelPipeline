@@ -1,0 +1,265 @@
+{
+  "target": {
+    "total_tb": 2500,
+    "minimum_languages": 20,
+    "required_modalities": [
+      "pure_text",
+      "multimodal",
+      "video_pretraining",
+      "vla"
+    ],
+    "quality_gates": {
+      "min_quality_score": 0.72,
+      "max_duplicate_rate": 0.08
+    }
+  },
+  "sources": [
+    {
+      "name": "openweb_multilingual_text",
+      "source_type": "open_source",
+      "modalities": ["pure_text"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk", "he", "ms", "fil", "bn", "fa"],
+      "size_tb": 720,
+      "quality_score": 0.81,
+      "duplicate_rate": 0.06,
+      "license": "mixed-permissive-with-provenance",
+      "tags": ["web", "multilingual", "pretrain"]
+    },
+    {
+      "name": "code_math_science_text",
+      "source_type": "open_source",
+      "modalities": ["pure_text"],
+      "languages": ["en", "zh", "ja", "de", "fr", "ru"],
+      "size_tb": 180,
+      "quality_score": 0.86,
+      "duplicate_rate": 0.04,
+      "license": "permissive-code-and-open-access",
+      "tags": ["code", "math", "science"]
+    },
+    {
+      "name": "licensed_books_academic_text",
+      "source_type": "new_collection",
+      "modalities": ["pure_text"],
+      "languages": ["en", "zh", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "tr", "pl", "nl", "uk"],
+      "size_tb": 140,
+      "quality_score": 0.89,
+      "duplicate_rate": 0.03,
+      "license": "licensed",
+      "tags": ["books", "academic", "longform"]
+    },
+    {
+      "name": "image_text_web_pairs",
+      "source_type": "open_source",
+      "modalities": ["multimodal"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk", "he", "ms"],
+      "size_tb": 430,
+      "quality_score": 0.80,
+      "duplicate_rate": 0.065,
+      "license": "mixed-permissive-with-provenance",
+      "tags": ["image-text", "ocr", "caption"]
+    },
+    {
+      "name": "new_ocr_document_multimodal",
+      "source_type": "new_collection",
+      "modalities": ["multimodal"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk", "he", "ms"],
+      "size_tb": 260,
+      "quality_score": 0.83,
+      "duplicate_rate": 0.05,
+      "license": "licensed-and-consented",
+      "tags": ["document", "ocr", "chart", "table"]
+    },
+    {
+      "name": "video_caption_web_corpus",
+      "source_type": "open_source",
+      "modalities": ["video_pretraining"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk"],
+      "size_tb": 410,
+      "quality_score": 0.78,
+      "duplicate_rate": 0.07,
+      "license": "mixed-permissive-with-provenance",
+      "tags": ["video", "caption", "temporal"]
+    },
+    {
+      "name": "autonomous_driving_video_actions",
+      "source_type": "business",
+      "modalities": ["video_pretraining", "vla"],
+      "languages": ["en", "zh"],
+      "size_tb": 210,
+      "quality_score": 0.84,
+      "duplicate_rate": 0.03,
+      "license": "internal-approved",
+      "tags": ["driving", "action", "trajectory"]
+    },
+    {
+      "name": "robot_trajectory_vla",
+      "source_type": "new_collection",
+      "modalities": ["vla"],
+      "languages": ["en", "zh", "ja", "ko"],
+      "size_tb": 110,
+      "quality_score": 0.87,
+      "duplicate_rate": 0.025,
+      "license": "licensed-and-consented",
+      "tags": ["robotics", "instruction", "action"]
+    },
+    {
+      "name": "simulated_vla_rollouts",
+      "source_type": "new_collection",
+      "modalities": ["vla"],
+      "languages": ["en", "zh"],
+      "size_tb": 115,
+      "quality_score": 0.82,
+      "duplicate_rate": 0.02,
+      "license": "generated-internal",
+      "tags": ["simulation", "rollout", "failure-recovery"]
+    },
+    {
+      "name": "business_dialog_instruction_data",
+      "source_type": "business",
+      "modalities": ["pure_text"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru"],
+      "size_tb": 65,
+      "quality_score": 0.90,
+      "duplicate_rate": 0.03,
+      "license": "internal-approved",
+      "tags": ["instruction", "dialogue", "sft"]
+    },
+    {
+      "name": "customer_support_multilingual_logs",
+      "source_type": "business",
+      "modalities": ["pure_text"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk"],
+      "size_tb": 70,
+      "quality_score": 0.88,
+      "duplicate_rate": 0.035,
+      "license": "internal-approved-redacted",
+      "tags": ["support", "business", "safety"]
+    }
+  ],
+  "processing_stages": [
+    {
+      "name": "ingest_normalize",
+      "operations": ["schema_mapping", "license_tagging", "language_id", "content_type_routing", "hash_indexing"],
+      "output": "versioned_raw_shards",
+      "owner": "data-platform"
+    },
+    {
+      "name": "clean_filter",
+      "operations": ["html_boilerplate_removal", "pii_redaction", "toxicity_filtering", "low_information_filtering", "ocr_noise_repair"],
+      "output": "clean_candidate_shards",
+      "owner": "data-quality"
+    },
+    {
+      "name": "deduplicate",
+      "operations": ["exact_hash_dedup", "minhash_lsh_near_dedup", "embedding_near_dedup", "video_shot_dedup", "trajectory_dedup"],
+      "output": "deduplicated_shards",
+      "owner": "data-quality"
+    },
+    {
+      "name": "cluster_balance",
+      "operations": ["embedding_clustering", "topic_taxonomy_assignment", "domain_temperature_sampling", "language_balancing", "modality_balancing"],
+      "output": "clustered_data_pool",
+      "owner": "data-science"
+    },
+    {
+      "name": "quality_assess",
+      "operations": ["perplexity_quality_score", "aesthetic_score", "video_motion_score", "instruction_following_proxy", "vla_success_proxy"],
+      "output": "quality_ranked_pool",
+      "owner": "model-quality"
+    },
+    {
+      "name": "pack_shard",
+      "operations": ["sequence_packing", "multimodal_sample_packing", "deterministic_sharding", "manifest_snapshot"],
+      "output": "train_ready_mixture_shards",
+      "owner": "data-platform"
+    }
+  ],
+  "mixture_stages": [
+    {
+      "name": "warmup_2k",
+      "total_tb": 150,
+      "objective": "stabilize tokenizer, optimizer, and early curriculum",
+      "modality_targets": {
+        "pure_text": 0.72,
+        "multimodal": 0.16,
+        "video_pretraining": 0.08,
+        "vla": 0.04
+      },
+      "language_targets": {
+        "en": 0.38,
+        "zh": 0.24,
+        "other": 0.38
+      },
+      "notes": "high-quality and low-duplicate shards only"
+    },
+    {
+      "name": "core_pretrain",
+      "total_tb": 1700,
+      "objective": "maximize broad language, code, knowledge, and multimodal coverage",
+      "modality_targets": {
+        "pure_text": 0.58,
+        "multimodal": 0.22,
+        "video_pretraining": 0.15,
+        "vla": 0.05
+      },
+      "language_targets": {
+        "en": 0.35,
+        "zh": 0.24,
+        "other": 0.41
+      },
+      "notes": "temperature sampling over source, language, and topic clusters"
+    },
+    {
+      "name": "multimodal_video_expansion",
+      "total_tb": 450,
+      "objective": "improve temporal understanding and image-video grounding",
+      "modality_targets": {
+        "pure_text": 0.20,
+        "multimodal": 0.34,
+        "video_pretraining": 0.38,
+        "vla": 0.08
+      },
+      "language_targets": {
+        "en": 0.34,
+        "zh": 0.26,
+        "other": 0.40
+      },
+      "notes": "increase high-motion and OCR-rich examples"
+    },
+    {
+      "name": "vla_alignment",
+      "total_tb": 120,
+      "objective": "bind perception, language instruction, and action policy traces",
+      "modality_targets": {
+        "pure_text": 0.10,
+        "multimodal": 0.20,
+        "video_pretraining": 0.25,
+        "vla": 0.45
+      },
+      "language_targets": {
+        "en": 0.40,
+        "zh": 0.35,
+        "other": 0.25
+      },
+      "notes": "balanced real and simulated trajectories"
+    },
+    {
+      "name": "reasoning_final",
+      "total_tb": 80,
+      "objective": "raise high-quality reasoning, tool-use, and instruction-following density",
+      "modality_targets": {
+        "pure_text": 0.62,
+        "multimodal": 0.18,
+        "video_pretraining": 0.08,
+        "vla": 0.12
+      },
+      "language_targets": {
+        "en": 0.42,
+        "zh": 0.30,
+        "other": 0.28
+      },
+      "notes": "quality-weighted replay before post-training"
+    }
+  ]
+}
+

@@ -1,0 +1,9 @@
+{
+  "name": "example-evaluator",
+  "version": "0.1.0",
+  "kind": "evaluator",
+  "module": "fmops.example_plugins",
+  "entrypoint": "build_example_evaluator",
+  "description": "Tiny evaluator plugin used to validate plugin discovery and loading."
+}
+

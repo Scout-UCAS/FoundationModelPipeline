@@ -1,0 +1,234 @@
+{
+  "required_dimensions": [
+    "general",
+    "reasoning",
+    "multimodal_understanding",
+    "vla",
+    "long_context",
+    "tool_calling",
+    "agent",
+    "edge_efficiency"
+  ],
+  "benchmarks": [
+    {
+      "name": "general_multilingual_core",
+      "dimension": "general",
+      "datasets": [
+        "MMLU",
+        "MMLU-Pro",
+        "BBH",
+        "ARC-Challenge",
+        "HellaSwag",
+        "TruthfulQA",
+        "CMMLU",
+        "C-Eval",
+        "CLUE",
+        "TyDiQA",
+        "FLORES-200",
+        "Belebele",
+        "MGSM"
+      ],
+      "metrics": ["accuracy", "macro_average", "calibration_error"],
+      "weight": 1.0,
+      "cadence": "daily-and-release",
+      "gate": {
+        "macro_average": 0.72
+      }
+    },
+    {
+      "name": "reasoning_math_code",
+      "dimension": "reasoning",
+      "datasets": [
+        "GSM8K",
+        "MATH",
+        "MATH-500",
+        "AIME-style private holdout",
+        "GPQA",
+        "OlympiadBench",
+        "HumanEval",
+        "MBPP",
+        "LiveCodeBench",
+        "APPS",
+        "CodeContests",
+        "CRUXEval",
+        "SciCode",
+        "SWE-bench Verified",
+        "formal-proof-mini"
+      ],
+      "metrics": ["pass_at_1", "consensus_pass", "verified_solution_rate"],
+      "weight": 1.4,
+      "cadence": "daily-and-release",
+      "gate": {
+        "pass_at_1": 0.48
+      }
+    },
+    {
+      "name": "multimodal_understanding_core",
+      "dimension": "multimodal_understanding",
+      "datasets": [
+        "MMMU",
+        "MMMU-Pro",
+        "MMBench",
+        "MMStar",
+        "SEED-Bench",
+        "MM-Vet",
+        "MathVista",
+        "ScienceQA",
+        "AI2D",
+        "VQAv2",
+        "GQA",
+        "OK-VQA",
+        "A-OKVQA",
+        "VizWiz",
+        "TextVQA",
+        "DocVQA",
+        "ChartQA",
+        "InfoVQA",
+        "OCRBench",
+        "Video-MME",
+        "MVBench"
+      ],
+      "metrics": ["accuracy", "ocr_f1", "temporal_reasoning"],
+      "weight": 1.2,
+      "cadence": "daily-and-release",
+      "gate": {
+        "accuracy": 0.66
+      }
+    },
+    {
+      "name": "vla_action_policy",
+      "dimension": "vla",
+      "datasets": [
+        "LIBERO",
+        "CALVIN",
+        "RLBench",
+        "Language Table",
+        "Meta-World",
+        "ManiSkill",
+        "robomimic",
+        "RoboCasa",
+        "SimplerEnv",
+        "Open X-Embodiment heldout",
+        "robot-sim-heldout",
+        "nuPlan",
+        "CARLA Leaderboard",
+        "Bench2Drive",
+        "NAVSIM",
+        "driving-action-heldout"
+      ],
+      "metrics": ["success_rate", "collision_free_rate", "action_l2", "recovery_rate"],
+      "weight": 1.2,
+      "cadence": "release",
+      "gate": {
+        "success_rate": 0.58
+      }
+    },
+    {
+      "name": "long_context_retrieval_reasoning",
+      "dimension": "long_context",
+      "datasets": [
+        "LongBench",
+        "LongBench v2",
+        "RULER",
+        "InfiniteBench",
+        "Needle-in-a-Haystack",
+        "BABILong",
+        "L-Eval",
+        "Lost-in-the-Middle",
+        "NarrativeQA",
+        "Qasper",
+        "HotpotQA",
+        "2WikiMultiHopQA",
+        "MuSiQue",
+        "QMSum",
+        "GovReport",
+        "RepoBench",
+        "LongVideoBench",
+        "MLVU"
+      ],
+      "metrics": ["exact_match", "citation_precision", "long_range_consistency"],
+      "weight": 0.9,
+      "cadence": "daily-and-release",
+      "gate": {
+        "exact_match": 0.70
+      }
+    },
+    {
+      "name": "tool_calling_reliability",
+      "dimension": "tool_calling",
+      "datasets": [
+        "Berkeley Function Calling Leaderboard",
+        "Gorilla OpenFunctions",
+        "ToolBench",
+        "StableToolBench",
+        "API-Bank",
+        "ToolAlpaca",
+        "ToolQA",
+        "tau-bench",
+        "function-call-json",
+        "sql-tool-use",
+        "code-interpreter-tasks",
+        "retrieval-tool-use"
+      ],
+      "metrics": ["schema_validity", "task_success", "tool_error_rate"],
+      "weight": 0.8,
+      "cadence": "daily-and-release",
+      "gate": {
+        "schema_validity": 0.97
+      }
+    },
+    {
+      "name": "agent_multi_step",
+      "dimension": "agent",
+      "datasets": [
+        "WebArena",
+        "VisualWebArena",
+        "MiniWoB++",
+        "Mind2Web",
+        "OSWorld",
+        "WorkArena",
+        "BrowserGym",
+        "GAIA",
+        "AgentBench",
+        "AppWorld",
+        "WebVoyager",
+        "SWE-bench",
+        "SWE-bench Verified",
+        "web-agent-mini",
+        "coding-agent-mini",
+        "workflow-agent-suite",
+        "vehicle-copilot-sim"
+      ],
+      "metrics": ["task_success", "steps_to_success", "unsafe_action_rate", "cost_per_success"],
+      "weight": 1.1,
+      "cadence": "release",
+      "gate": {
+        "task_success": 0.50
+      }
+    },
+    {
+      "name": "car_side_deployment_efficiency",
+      "dimension": "edge_efficiency",
+      "datasets": [
+        "MLPerf Inference Datacenter",
+        "MLPerf Inference Edge",
+        "MLPerf Tiny",
+        "GenAI-Perf",
+        "AIPerf",
+        "vLLM benchmark",
+        "TensorRT-LLM benchmark",
+        "LLMPerf",
+        "orin-replay",
+        "qualcomm-cockpit-replay",
+        "streaming-video-vla",
+        "CARLA closed-loop replay"
+      ],
+      "metrics": ["prefill_ms", "decode_tok_s", "memory_gb", "power_w", "frame_action_latency_ms"],
+      "weight": 0.9,
+      "cadence": "release",
+      "gate": {
+        "decode_tok_s": 24
+      }
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "target_gpus": 400,
+  "hardware": {
+    "nodes": 50,
+    "gpus_per_node": 8,
+    "gpu_type": "H100-80GB",
+    "interconnect": "400G InfiniBand with hierarchical all-reduce",
+    "storage": "NVMe cache + object-store shards, 1.2 TB/s aggregate read target"
+  },
+  "stages": [
+    {
+      "name": "Pre-training",
+      "objective": "train base model on 2500T+ staged mixture",
+      "data_mixture": "core_pretrain",
+      "framework": "Megatron-DeepSpeed",
+      "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/pretrain.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/pretraining_rank0.json",
+      "parallelism": {
+        "tensor": 8,
+        "pipeline": 4,
+        "data": 10,
+        "context": 1
+      },
+      "monitors": ["loss_spike", "grad_norm", "nan_inf", "throughput", "expert_balance", "data_skew"],
+      "artifacts": ["global_step_checkpoint", "optimizer_state", "tokenizer_bundle", "data_manifest_snapshot"],
+      "gates": {
+        "max_loss_spike_ratio": 1.35,
+        "max_nan_incidents": 0,
+        "min_gpu_utilization": 0.88
+      }
+    },
+    {
+      "name": "SFT",
+      "objective": "align instruction following, multilingual dialogue, multimodal QA, and VLA commands",
+      "data_mixture": "reasoning_final",
+      "framework": "FSDP",
+      "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/sft.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/sft_rank0.json",
+      "parallelism": {
+        "tensor": 4,
+        "pipeline": 2,
+        "data": 50,
+        "context": 1
+      },
+      "monitors": ["loss_spike", "packing_efficiency", "modality_mix", "eval_canary"],
+      "artifacts": ["sft_checkpoint", "adapter_or_full_weights", "conversation_template", "safety_report"],
+      "gates": {
+        "max_eval_regression": 0.02,
+        "min_instruction_win_rate": 0.58
+      }
+    },
+    {
+      "name": "RL",
+      "objective": "optimize reasoning, preference, safety, and tool-use rewards",
+      "data_mixture": "rl_reasoning_tool_mix",
+      "framework": "verl-compatible PPO/GRPO",
+      "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/rl.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/rl_rank0.json",
+      "parallelism": {
+        "tensor": 4,
+        "pipeline": 2,
+        "data": 50,
+        "context": 1
+      },
+      "monitors": ["reward_mean", "kl_divergence", "policy_entropy", "response_length", "judge_drift"],
+      "artifacts": ["rl_policy_checkpoint", "reward_model_snapshot", "rollout_logs", "kl_dashboard"],
+      "gates": {
+        "max_kl": 0.12,
+        "min_reward_score": 0.62
+      }
+    },
+    {
+      "name": "Agentic RL",
+      "objective": "train multi-step tool, browser, code, and vehicle-agent behavior",
+      "data_mixture": "agentic_env_rollouts",
+      "framework": "asynchronous actor-learner",
+      "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/agentic_rl.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/agentic_rl_rank0.json",
+      "parallelism": {
+        "tensor": 2,
+        "pipeline": 2,
+        "data": 100,
+        "context": 1
+      },
+      "monitors": ["task_success", "tool_error_rate", "environment_timeout", "credit_assignment", "safety_violation"],
+      "artifacts": ["agent_policy_checkpoint", "environment_transcripts", "tool_call_traces", "deployment_candidate"],
+      "gates": {
+        "max_tool_error_rate": 0.08,
+        "min_task_success": 0.55,
+        "max_safety_violation": 0.01
+      }
+    }
+  ],
+  "integration": {
+    "flows": [
+      "data processing handoff: manifest versioning, shard hash registry, and lineage checks",
+      "distributed training flow: torchrun/deepspeed launch, checkpoint resharding, and elastic restart",
+      "stability monitoring flow: loss spike alarms, NaN/Inf guards, throughput regression dashboard, and expert balance checks",
+      "model conversion flow: training checkpoint to inference checkpoint, tokenizer bundle, quantization recipe, and serving metadata",
+      "deployment validation flow: smoke tests on serving stack, multimodal request replay, and car-side benchmark harness"
+    ],
+    "release_gates": [
+      "all stage gates pass",
+      "no unresolved data provenance blocker",
+      "model conversion reproducible from immutable checkpoint",
+      "deployment validation passes target latency and memory envelopes"
+    ]
+  }
+}

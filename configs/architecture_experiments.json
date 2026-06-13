@@ -1,0 +1,226 @@
+{
+  "unified_setup": {
+    "tokenizer": "fm-unified-256k",
+    "training_tokens_billion": 300,
+    "context_length": 32768,
+    "optimizer": "adamw-bf16-with-z-loss",
+    "hardware_budget_gpus": 400,
+    "batch_tokens": 8388608,
+    "evaluation_snapshot_interval_steps": 1000
+  },
+  "required_families": [
+    "MoE",
+    "Sparse / Linear Attention",
+    "RNN-like Backbone",
+    "Hybrid Architecture",
+    "MTP",
+    "Latent Reasoning",
+    "dLLM",
+    "Memory-augmented LLM",
+    "Omni-modal Architecture",
+    "Reasoning-native Architecture"
+  ],
+  "candidates": [
+    {
+      "name": "moe-top2-64e",
+      "family": "MoE",
+      "hypothesis": "Top-2 expert routing improves capacity without proportional inference cost.",
+      "total_params_b": 320,
+      "active_params_b": 45,
+      "components": {
+        "attention": "dense",
+        "ffn": "64 experts top2",
+        "routing": "aux-loss + capacity factor 1.25"
+      },
+      "metrics": {
+        "validation_loss": 1.91,
+        "tokens_per_second_per_gpu": 2320,
+        "reasoning_score": 66.8,
+        "memory_gb_per_gpu": 72,
+        "stability_score": 0.88
+      },
+      "risks": ["expert imbalance", "checkpoint conversion complexity"]
+    },
+    {
+      "name": "linear-sparse-attn-32k",
+      "family": "Sparse / Linear Attention",
+      "hypothesis": "Block-sparse local-global attention improves long-context throughput.",
+      "total_params_b": 72,
+      "active_params_b": 72,
+      "components": {
+        "attention": "linear recurrent states + sparse global tokens",
+        "ffn": "dense swiglu",
+        "position": "yarn-rope"
+      },
+      "metrics": {
+        "validation_loss": 1.98,
+        "tokens_per_second_per_gpu": 2860,
+        "reasoning_score": 63.5,
+        "memory_gb_per_gpu": 62,
+        "stability_score": 0.84
+      },
+      "risks": ["quality regression on exact retrieval", "kernel maturity"]
+    },
+    {
+      "name": "rwkv-style-rnn-backbone",
+      "family": "RNN-like Backbone",
+      "hypothesis": "RNN-like state passing reduces prefill and streaming latency.",
+      "total_params_b": 70,
+      "active_params_b": 70,
+      "components": {
+        "backbone": "time-mix recurrent blocks",
+        "attention": "state-space replacement",
+        "ffn": "dense"
+      },
+      "metrics": {
+        "validation_loss": 2.06,
+        "tokens_per_second_per_gpu": 3150,
+        "reasoning_score": 59.4,
+        "memory_gb_per_gpu": 54,
+        "stability_score": 0.82
+      },
+      "risks": ["reasoning depth", "tool-use transfer"]
+    },
+    {
+      "name": "hybrid-mamba-transformer",
+      "family": "Hybrid Architecture",
+      "hypothesis": "Interleaving state-space and attention blocks balances throughput and reasoning.",
+      "total_params_b": 86,
+      "active_params_b": 86,
+      "components": {
+        "backbone": "3 mamba blocks per 1 attention block",
+        "attention": "sliding window + global",
+        "ffn": "dense swiglu"
+      },
+      "metrics": {
+        "validation_loss": 1.96,
+        "tokens_per_second_per_gpu": 2740,
+        "reasoning_score": 65.2,
+        "memory_gb_per_gpu": 65,
+        "stability_score": 0.87
+      },
+      "risks": ["architecture search space", "kernel coupling"]
+    },
+    {
+      "name": "mtp-4head-decoder",
+      "family": "MTP",
+      "hypothesis": "Multi-token prediction improves sample efficiency and decoding throughput.",
+      "total_params_b": 74,
+      "active_params_b": 74,
+      "components": {
+        "prediction_heads": 4,
+        "loss": "main token + future token distillation",
+        "attention": "dense"
+      },
+      "metrics": {
+        "validation_loss": 1.93,
+        "tokens_per_second_per_gpu": 2470,
+        "reasoning_score": 66.1,
+        "memory_gb_per_gpu": 70,
+        "stability_score": 0.86
+      },
+      "risks": ["loss weighting", "serving compatibility"]
+    },
+    {
+      "name": "latent-reasoning-scratchpad",
+      "family": "Latent Reasoning",
+      "hypothesis": "Latent thought tokens improve reasoning without exposing verbose chains.",
+      "total_params_b": 78,
+      "active_params_b": 78,
+      "components": {
+        "latent_tokens": 64,
+        "controller": "adaptive latent budget",
+        "supervision": "outcome + verifier"
+      },
+      "metrics": {
+        "validation_loss": 1.95,
+        "tokens_per_second_per_gpu": 2210,
+        "reasoning_score": 69.6,
+        "memory_gb_per_gpu": 74,
+        "stability_score": 0.83
+      },
+      "risks": ["training signal design", "latency variance"]
+    },
+    {
+      "name": "diffusion-llm-dllm",
+      "family": "dLLM",
+      "hypothesis": "Discrete diffusion decoding improves controllability and global coherence.",
+      "total_params_b": 68,
+      "active_params_b": 68,
+      "components": {
+        "objective": "masked denoising + autoregressive bridge",
+        "sampler": "iterative parallel refinement",
+        "attention": "bidirectional during denoise"
+      },
+      "metrics": {
+        "validation_loss": 2.11,
+        "tokens_per_second_per_gpu": 1980,
+        "reasoning_score": 61.2,
+        "memory_gb_per_gpu": 76,
+        "stability_score": 0.79
+      },
+      "risks": ["benchmark comparability", "serving latency"]
+    },
+    {
+      "name": "memory-augmented-retrieval-state",
+      "family": "Memory-augmented LLM",
+      "hypothesis": "Persistent memory slots improve long-horizon agents and personalization.",
+      "total_params_b": 82,
+      "active_params_b": 82,
+      "components": {
+        "memory": "learned slots + external vector recall",
+        "attention": "cross-attention to memory bank",
+        "training": "memory write/read contrastive loss"
+      },
+      "metrics": {
+        "validation_loss": 1.99,
+        "tokens_per_second_per_gpu": 2180,
+        "reasoning_score": 67.7,
+        "memory_gb_per_gpu": 78,
+        "stability_score": 0.81
+      },
+      "risks": ["privacy isolation", "state invalidation"]
+    },
+    {
+      "name": "omni-modal-unified-tokens",
+      "family": "Omni-modal Architecture",
+      "hypothesis": "Unified token spaces improve transfer across text, image, video, audio, and actions.",
+      "total_params_b": 96,
+      "active_params_b": 96,
+      "components": {
+        "tokenizers": "text image video audio action",
+        "fusion": "early token unification + modality adapters",
+        "decoder": "shared autoregressive trunk"
+      },
+      "metrics": {
+        "validation_loss": 1.97,
+        "tokens_per_second_per_gpu": 2060,
+        "reasoning_score": 68.9,
+        "memory_gb_per_gpu": 80,
+        "stability_score": 0.80
+      },
+      "risks": ["token budget pressure", "modality imbalance"]
+    },
+    {
+      "name": "reasoning-native-verifier-policy",
+      "family": "Reasoning-native Architecture",
+      "hypothesis": "Joint policy, verifier, and planner heads improve deliberative reasoning and agents.",
+      "total_params_b": 90,
+      "active_params_b": 90,
+      "components": {
+        "heads": "policy verifier planner",
+        "loss": "next token + process reward + self-verification",
+        "inference": "adaptive deliberation"
+      },
+      "metrics": {
+        "validation_loss": 1.94,
+        "tokens_per_second_per_gpu": 2130,
+        "reasoning_score": 72.4,
+        "memory_gb_per_gpu": 79,
+        "stability_score": 0.82
+      },
+      "risks": ["reward hacking", "calibration"]
+    }
+  ]
+}
+

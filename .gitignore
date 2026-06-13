@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local env
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Generated runtime artifacts
+artifacts/
+*.pt
+*.bin
+*.safetensors
+*.ckpt
+checkpoint_manifest.json
+run_manifest.json
+
+# Build outputs
+build/
+dist/
+*.egg-info/

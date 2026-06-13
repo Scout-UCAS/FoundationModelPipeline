@@ -1,0 +1,317 @@
+{
+  "schema_version": "1.0",
+  "artifact_root": "artifacts/production",
+  "execution": {
+    "default_mode": "plan",
+    "production_execute_env": "FMOPS_ALLOW_PRODUCTION_EXECUTE",
+    "policy": "External production commands are only executed when --execute is passed and FMOPS_ALLOW_PRODUCTION_EXECUTE=1 is set.",
+    "supported_backends": [
+      "spark",
+      "ray",
+      "slurm",
+      "kubernetes",
+      "lm-eval",
+      "opencompass",
+      "vlmevalkit",
+      "vllm",
+      "tensorrt-llm",
+      "prometheus",
+      "native-pytorch"
+    ]
+  },
+  "tasks": [
+    {
+      "name": "ingest_open_new_business_sources",
+      "area": "data",
+      "adapter": "spark-data-lake",
+      "description": "Submit source ingestion and lineage ledger generation for open-source, newly collected, and business data.",
+      "command": "{python} jobs/data_ingest.py --manifest {config_dir}/data_manifest.json --catalog {config_dir}/datasets_catalog.json --output {artifact_root}/data/ingestion_manifest.json --executor spark --submit",
+      "required_binaries": ["spark-submit"],
+      "required_env": ["FMOPS_DATA_LAKE_URI", "FMOPS_METADATA_STORE_URI"],
+      "inputs": ["configs/data_manifest.json", "configs/datasets_catalog.json"],
+      "outputs": ["{artifact_root}/data/ingestion_manifest.json"],
+      "gates": {
+        "min_total_tb": 2500,
+        "min_languages": 20,
+        "required_modalities": ["pure_text", "multimodal", "video_pretraining", "vla"]
+      },
+      "owner": "data-platform",
+      "timeout_seconds": 21600
+    },
+    {
+      "name": "clean_dedup_cluster_quality",
+      "area": "data",
+      "adapter": "ray-quality-dedup",
+      "description": "Run PII/safety filtering, exact and near-duplicate removal, clustering, contamination scan, and quality scoring.",
+      "command": "{python} jobs/data_quality.py --manifest {config_dir}/data_manifest.json --catalog {config_dir}/datasets_catalog.json --output {artifact_root}/data/quality_report.json --executor ray --submit",
+      "required_binaries": ["ray"],
+      "required_env": ["FMOPS_DATA_LAKE_URI", "FMOPS_QUALITY_MODEL_URI", "FMOPS_DEDUP_INDEX_URI"],
+      "inputs": ["configs/data_manifest.json", "configs/datasets_catalog.json"],
+      "outputs": ["{artifact_root}/data/quality_report.json", "{artifact_root}/data/dedup_clusters.json"],
+      "gates": {
+        "min_quality_score": 0.82,
+        "max_duplicate_rate": 0.18,
+        "max_contamination_rate": 0.001
+      },
+      "owner": "data-quality",
+      "timeout_seconds": 43200
+    },
+    {
+      "name": "materialize_multistage_mixtures",
+      "area": "data",
+      "adapter": "spark-shard-writer",
+      "description": "Write staged mixture manifests and packed shard plans for warmup, core pretraining, multimodal/video, VLA, and reasoning stages.",
+      "command": "{python} jobs/data_mixture.py --manifest {config_dir}/data_manifest.json --output {artifact_root}/data/mixture_manifest.json --executor spark --submit",
+      "required_binaries": ["spark-submit"],
+      "required_env": ["FMOPS_DATA_LAKE_URI", "FMOPS_SHARD_STORE_URI"],
+      "inputs": ["configs/data_manifest.json", "{artifact_root}/data/quality_report.json"],
+      "outputs": ["{artifact_root}/data/mixture_manifest.json"],
+      "gates": {
+        "mixture_stage_count": 5,
+        "max_sampling_skew": 0.03
+      },
+      "owner": "data-platform",
+      "timeout_seconds": 21600
+    },
+    {
+      "name": "submit_pretraining_400gpu",
+      "area": "training",
+      "adapter": "slurm-megatron-deepspeed",
+      "description": "Submit the 400-GPU pretraining job with data handoff, distributed parallelism, and stability monitors.",
+      "command": "{python} jobs/training_launch.py --config-dir {config_dir} --stage Pre-training --scheduler slurm --output {artifact_root}/training/pretraining_launch.json --submit",
+      "required_binaries": ["sbatch"],
+      "required_env": ["FMOPS_CLUSTER_ACCOUNT", "FMOPS_CONTAINER_IMAGE", "FMOPS_CHECKPOINT_ROOT", "FMOPS_PRETRAIN_BACKEND_COMMAND"],
+      "inputs": ["configs/training_pipeline.json", "{artifact_root}/data/mixture_manifest.json"],
+      "outputs": ["{artifact_root}/training/pretraining_launch.json"],
+      "gates": {
+        "world_size": 400,
+        "max_nan_incidents": 0,
+        "min_gpu_utilization": 0.88
+      },
+      "owner": "training-platform",
+      "timeout_seconds": 3600
+    },
+    {
+      "name": "submit_sft_400gpu",
+      "area": "training",
+      "adapter": "slurm-fsdp",
+      "description": "Submit SFT over instruction, multimodal, multilingual, and VLA command mixtures.",
+      "command": "{python} jobs/training_launch.py --config-dir {config_dir} --stage SFT --scheduler slurm --output {artifact_root}/training/sft_launch.json --submit",
+      "required_binaries": ["sbatch"],
+      "required_env": ["FMOPS_CLUSTER_ACCOUNT", "FMOPS_CONTAINER_IMAGE", "FMOPS_CHECKPOINT_ROOT", "FMOPS_SFT_BACKEND_COMMAND"],
+      "inputs": ["configs/training_pipeline.json", "{artifact_root}/data/mixture_manifest.json"],
+      "outputs": ["{artifact_root}/training/sft_launch.json"],
+      "gates": {
+        "world_size": 400,
+        "min_instruction_win_rate": 0.58
+      },
+      "owner": "training-platform",
+      "timeout_seconds": 3600
+    },
+    {
+      "name": "submit_rl_400gpu",
+      "area": "training",
+      "adapter": "slurm-verl-rl",
+      "description": "Submit RL/GRPO-style training for reasoning, tool-use, preference, and safety rewards.",
+      "command": "{python} jobs/training_launch.py --config-dir {config_dir} --stage RL --scheduler slurm --output {artifact_root}/training/rl_launch.json --submit",
+      "required_binaries": ["sbatch"],
+      "required_env": ["FMOPS_CLUSTER_ACCOUNT", "FMOPS_CONTAINER_IMAGE", "FMOPS_CHECKPOINT_ROOT", "FMOPS_REWARD_MODEL_URI", "FMOPS_RL_BACKEND_COMMAND"],
+      "inputs": ["configs/training_pipeline.json", "{artifact_root}/training/sft_launch.json"],
+      "outputs": ["{artifact_root}/training/rl_launch.json"],
+      "gates": {
+        "world_size": 400,
+        "max_kl": 0.12,
+        "min_reward_score": 0.62
+      },
+      "owner": "rl-platform",
+      "timeout_seconds": 3600
+    },
+    {
+      "name": "submit_agentic_rl_400gpu",
+      "area": "training",
+      "adapter": "slurm-actor-learner",
+      "description": "Submit asynchronous agentic RL for tool, browser, code, and vehicle-agent environments.",
+      "command": "{python} jobs/training_launch.py --config-dir {config_dir} --stage \"Agentic RL\" --scheduler slurm --output {artifact_root}/training/agentic_rl_launch.json --submit",
+      "required_binaries": ["sbatch"],
+      "required_env": ["FMOPS_CLUSTER_ACCOUNT", "FMOPS_CONTAINER_IMAGE", "FMOPS_CHECKPOINT_ROOT", "FMOPS_AGENT_ENV_REGISTRY", "FMOPS_AGENTIC_RL_BACKEND_COMMAND"],
+      "inputs": ["configs/training_pipeline.json", "{artifact_root}/training/rl_launch.json"],
+      "outputs": ["{artifact_root}/training/agentic_rl_launch.json"],
+      "gates": {
+        "world_size": 400,
+        "min_task_success": 0.55,
+        "max_safety_violation": 0.01
+      },
+      "owner": "agent-platform",
+      "timeout_seconds": 3600
+    },
+    {
+      "name": "run_text_reasoning_eval",
+      "area": "evaluation",
+      "adapter": "lm-eval",
+      "description": "Run general, multilingual, reasoning, code, and long-context public/private suites.",
+      "command": "{python} jobs/evaluation_launch.py --config-dir {config_dir} --model-id \"$FMOPS_MODEL_ID\" --benchmark general_multilingual_core,reasoning_math_code,long_context_retrieval_reasoning --harness lm-eval --output {artifact_root}/evaluation/text_reasoning_eval.json --submit",
+      "required_binaries": ["lm_eval"],
+      "required_env": ["FMOPS_MODEL_ID", "FMOPS_MODEL_ENDPOINT"],
+      "inputs": ["configs/evaluation_suite.json"],
+      "outputs": ["{artifact_root}/evaluation/text_reasoning_eval.json"],
+      "gates": {
+        "macro_average": 0.72,
+        "pass_at_1": 0.48,
+        "exact_match": 0.70
+      },
+      "owner": "evaluation-platform",
+      "timeout_seconds": 43200
+    },
+    {
+      "name": "run_multimodal_video_eval",
+      "area": "evaluation",
+      "adapter": "opencompass-vlmevalkit",
+      "description": "Run image, document, OCR, chart, video, and omni-modal evaluation suites.",
+      "command": "{python} jobs/evaluation_launch.py --config-dir {config_dir} --model-id \"$FMOPS_MODEL_ID\" --benchmark multimodal_understanding_core --harness vlmevalkit --output {artifact_root}/evaluation/multimodal_video_eval.json --submit",
+      "required_binaries": ["vlm_eval"],
+      "required_env": ["FMOPS_MODEL_ID", "FMOPS_MODEL_ENDPOINT", "FMOPS_VLM_DATA_ROOT"],
+      "inputs": ["configs/evaluation_suite.json"],
+      "outputs": ["{artifact_root}/evaluation/multimodal_video_eval.json"],
+      "gates": {
+        "accuracy": 0.66,
+        "ocr_f1": 0.60
+      },
+      "owner": "evaluation-platform",
+      "timeout_seconds": 43200
+    },
+    {
+      "name": "run_vla_agent_eval",
+      "area": "evaluation",
+      "adapter": "simulator-agent-eval",
+      "description": "Run VLA, robotics, web-agent, coding-agent, and vehicle-copilot simulation suites.",
+      "command": "{python} jobs/evaluation_launch.py --config-dir {config_dir} --model-id \"$FMOPS_MODEL_ID\" --benchmark vla_action_policy,tool_calling_reliability,agent_multi_step --harness simulator --output {artifact_root}/evaluation/vla_agent_eval.json --submit",
+      "required_binaries": ["python"],
+      "required_env": ["FMOPS_MODEL_ID", "FMOPS_SIMULATOR_REGISTRY", "FMOPS_AGENT_ENV_REGISTRY"],
+      "inputs": ["configs/evaluation_suite.json"],
+      "outputs": ["{artifact_root}/evaluation/vla_agent_eval.json"],
+      "gates": {
+        "success_rate": 0.58,
+        "schema_validity": 0.97,
+        "task_success": 0.50
+      },
+      "owner": "evaluation-platform",
+      "timeout_seconds": 43200
+    },
+    {
+      "name": "convert_checkpoint_for_serving",
+      "area": "checkpoint",
+      "adapter": "megatron-hf-safetensors",
+      "description": "Convert and audit training checkpoints for inference runtimes.",
+      "command": "{python} jobs/checkpoint_convert.py --source \"$FMOPS_CHECKPOINT_SOURCE\" --target \"$FMOPS_CHECKPOINT_TARGET\" --source-format megatron --target-format hf-safetensors --output {artifact_root}/checkpoint/conversion_manifest.json",
+      "required_binaries": ["python"],
+      "required_env": ["FMOPS_CHECKPOINT_SOURCE", "FMOPS_CHECKPOINT_TARGET"],
+      "inputs": ["$FMOPS_CHECKPOINT_SOURCE"],
+      "outputs": ["{artifact_root}/checkpoint/conversion_manifest.json", "$FMOPS_CHECKPOINT_TARGET"],
+      "gates": {
+        "required_format": "hf-safetensors",
+        "tokenizer_bundle_required": true
+      },
+      "owner": "model-platform",
+      "timeout_seconds": 21600
+    },
+    {
+      "name": "run_server_and_edge_deployment_validation",
+      "area": "deployment",
+      "adapter": "vllm-tensorrt-llm-genai-perf",
+      "description": "Validate server, edge, cockpit, streaming video, and car-side deployment envelopes.",
+      "command": "{python} jobs/deployment_validate.py --model-path \"$FMOPS_MODEL_PATH\" --output {artifact_root}/deployment/deployment_report.json --submit",
+      "required_binaries": ["vllm", "genai-perf"],
+      "required_env": ["FMOPS_MODEL_PATH", "FMOPS_DEPLOYMENT_TARGETS"],
+      "inputs": ["$FMOPS_MODEL_PATH"],
+      "outputs": ["{artifact_root}/deployment/deployment_report.json"],
+      "gates": {
+        "decode_tok_s": 24,
+        "max_edge_power_w": 60
+      },
+      "owner": "serving-platform",
+      "timeout_seconds": 21600
+    },
+    {
+      "name": "export_monitoring_and_alerting",
+      "area": "monitoring",
+      "adapter": "prometheus-grafana",
+      "description": "Generate production alert rules and dashboard metadata for data, training, eval, serving, and governance.",
+      "command": "{python} jobs/monitoring_export.py --config-dir {config_dir} --output {artifact_root}/monitoring/monitoring_bundle.json",
+      "required_binaries": ["python"],
+      "required_env": [],
+      "inputs": ["configs/training_pipeline.json", "configs/evaluation_suite.json"],
+      "outputs": ["{artifact_root}/monitoring/monitoring_bundle.json"],
+      "gates": {
+        "alert_rule_count_min": 12
+      },
+      "owner": "observability",
+      "timeout_seconds": 1800
+    },
+    {
+      "name": "enforce_release_gates",
+      "area": "governance",
+      "adapter": "release-gate",
+      "description": "Aggregate data, training, evaluation, deployment, and safety gates before checkpoint promotion.",
+      "command": "{python} jobs/release_gate.py --production-config {config_dir}/production_integration.json --artifact-root {artifact_root} --output {artifact_root}/governance/release_gate_report.json",
+      "required_binaries": ["python"],
+      "required_env": [],
+      "inputs": ["configs/production_integration.json"],
+      "outputs": ["{artifact_root}/governance/release_gate_report.json"],
+      "gates": {
+        "required_release_gates": 8
+      },
+      "owner": "release",
+      "timeout_seconds": 1800
+    }
+  ],
+  "release_gates": [
+    {
+      "name": "data_license_and_privacy_approved",
+      "source": "artifacts/production/data/quality_report.json",
+      "condition": "license_allowlist_passed == true and pii_redaction_passed == true",
+      "owner": "data-governance"
+    },
+    {
+      "name": "data_scale_and_modalities_met",
+      "source": "artifacts/production/data/ingestion_manifest.json",
+      "condition": "total_tb >= 2500 and language_count >= 20 and modalities include pure_text,multimodal,video_pretraining,vla",
+      "owner": "data-platform"
+    },
+    {
+      "name": "training_stability_met",
+      "source": "artifacts/production/training/pretraining_launch.json",
+      "condition": "max_nan_incidents == 0 and gpu_utilization >= 0.88",
+      "owner": "training-platform"
+    },
+    {
+      "name": "checkpoint_conversion_verified",
+      "source": "artifacts/production/checkpoint/conversion_manifest.json",
+      "condition": "target_format == hf-safetensors and tokenizer_bundle_verified == true",
+      "owner": "model-platform"
+    },
+    {
+      "name": "core_evaluation_passed",
+      "source": "artifacts/production/evaluation/text_reasoning_eval.json",
+      "condition": "all configured gates passed",
+      "owner": "evaluation-platform"
+    },
+    {
+      "name": "multimodal_vla_evaluation_passed",
+      "source": "artifacts/production/evaluation/vla_agent_eval.json",
+      "condition": "vla success_rate >= 0.58 and agent task_success >= 0.50",
+      "owner": "evaluation-platform"
+    },
+    {
+      "name": "deployment_envelope_passed",
+      "source": "artifacts/production/deployment/deployment_report.json",
+      "condition": "server and edge deployment targets passed",
+      "owner": "serving-platform"
+    },
+    {
+      "name": "safety_and_governance_signoff",
+      "source": "artifacts/production/governance/release_gate_report.json",
+      "condition": "safety, privacy, release, and rollback approvals complete",
+      "owner": "release"
+    }
+  ]
+}
