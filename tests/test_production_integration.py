@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from fmops.production import ProductionIntegration, REQUIRED_PRODUCTION_AREAS
 
@@ -29,6 +31,19 @@ class ProductionIntegrationTest(unittest.TestCase):
         checks = self.integration.preflight(config_dir=CONFIG_DIR)
         self.assertEqual(15, len(checks))
         self.assertTrue(any(check.area == "training" for check in checks))
+
+    def test_python_command_is_portable_and_overridable(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            plan = self.integration.plan(config_dir=CONFIG_DIR)
+
+        command = plan["tasks"][0]["command"]
+        self.assertTrue(command.startswith("python jobs/"))
+        self.assertNotIn(str(Path.home()), command)
+
+        with mock.patch.dict(os.environ, {"FMOPS_PYTHON_COMMAND": "python3.12"}, clear=True):
+            plan = self.integration.plan(config_dir=CONFIG_DIR)
+
+        self.assertTrue(plan["tasks"][0]["command"].startswith("python3.12 jobs/"))
 
     def test_write_plan_check_and_non_execute_run(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

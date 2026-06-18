@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -24,6 +23,16 @@ REQUIRED_PRODUCTION_AREAS = (
 )
 
 BLOCKED_COMMAND_TOKENS = ("rm -rf /", "shutdown", "reboot", "mkfs", ":(){")
+
+
+def _repo_relative_path(path: str | Path) -> str:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        return str(path)
+    try:
+        return str(candidate.relative_to(Path.cwd()))
+    except ValueError:
+        return str(candidate)
 
 
 class SafeFormatDict(dict[str, Any]):
@@ -137,8 +146,8 @@ class ProductionIntegration:
     def context(self, config_dir: str | Path = "configs") -> dict[str, Any]:
         return {
             "artifact_root": self.artifact_root,
-            "config_dir": str(config_dir),
-            "python": sys.executable,
+            "config_dir": _repo_relative_path(config_dir),
+            "python": os.environ.get("FMOPS_PYTHON_COMMAND", "python"),
             "repo_root": str(Path.cwd()),
         }
 

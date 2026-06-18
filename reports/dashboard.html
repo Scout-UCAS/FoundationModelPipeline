@@ -22,21 +22,23 @@
     <h2>Data Summary</h2>
     <pre>{
   &quot;target_tb&quot;: 2500.0,
-  &quot;actual_tb&quot;: 2710.0,
+  &quot;actual_tb&quot;: 2835.0,
   &quot;language_count&quot;: 25,
   &quot;modalities&quot;: [
+    &quot;audio_speech&quot;,
     &quot;multimodal&quot;,
     &quot;pure_text&quot;,
     &quot;video_pretraining&quot;,
     &quot;vla&quot;
   ],
   &quot;size_by_modality_tb&quot;: {
+    &quot;audio_speech&quot;: 125.0,
     &quot;multimodal&quot;: 690.0,
     &quot;pure_text&quot;: 1175.0,
     &quot;video_pretraining&quot;: 515.0,
     &quot;vla&quot;: 330.0
   },
-  &quot;source_count&quot;: 11,
+  &quot;source_count&quot;: 12,
   &quot;processing_stage_count&quot;: 6,
   &quot;mixture_stage_count&quot;: 5
 }</pre>
@@ -45,26 +47,27 @@
     <h2>Top Architecture Candidates</h2>
     <table>
       <tr><th>Name</th><th>Family</th><th>Utility</th><th>Loss</th><th>Reasoning</th></tr>
-      <tr><td>hybrid-mamba-transformer</td><td>Hybrid Architecture</td><td>0.6488</td><td>1.96</td><td>65.2</td></tr><tr><td>moe-top2-64e</td><td>MoE</td><td>0.6466</td><td>1.91</td><td>66.8</td></tr><tr><td>mtp-4head-decoder</td><td>MTP</td><td>0.612</td><td>1.93</td><td>66.1</td></tr><tr><td>linear-sparse-attn-32k</td><td>Sparse / Linear Attention</td><td>0.579</td><td>1.98</td><td>63.5</td></tr><tr><td>reasoning-native-verifier-policy</td><td>Reasoning-native Architecture</td><td>0.5439</td><td>1.94</td><td>72.4</td></tr>
+      <tr><td>mla-gqa-kv-compressed</td><td>MLA / KV-Compressed Attention</td><td>0.7329</td><td>1.94</td><td>66.4</td></tr><tr><td>mamba-selective-scan</td><td>SSM / Selective Scan</td><td>0.6481</td><td>2.01</td><td>62.1</td></tr><tr><td>moe-top2-64e</td><td>MoE</td><td>0.6418</td><td>1.91</td><td>66.8</td></tr><tr><td>hybrid-mamba-transformer</td><td>Hybrid Architecture</td><td>0.6407</td><td>1.96</td><td>65.2</td></tr><tr><td>mtp-4head-decoder</td><td>MTP</td><td>0.615</td><td>1.93</td><td>66.1</td></tr>
     </table>
   </section>
   <section>
     <h2>Evaluation Weights</h2>
     <pre>{
-  &quot;agent&quot;: 0.1294,
-  &quot;edge_efficiency&quot;: 0.1059,
-  &quot;general&quot;: 0.1176,
-  &quot;long_context&quot;: 0.1059,
-  &quot;multimodal_understanding&quot;: 0.1412,
-  &quot;reasoning&quot;: 0.1647,
-  &quot;tool_calling&quot;: 0.0941,
-  &quot;vla&quot;: 0.1412
+  &quot;agent&quot;: 0.117,
+  &quot;audio_speech&quot;: 0.0957,
+  &quot;edge_efficiency&quot;: 0.0957,
+  &quot;general&quot;: 0.1064,
+  &quot;long_context&quot;: 0.0957,
+  &quot;multimodal_understanding&quot;: 0.1277,
+  &quot;reasoning&quot;: 0.1489,
+  &quot;tool_calling&quot;: 0.0851,
+  &quot;vla&quot;: 0.1277
 }</pre>
   </section>
   <section>
     <h2>Production Integration</h2>
     <pre>{
-  &quot;task_count&quot;: 14,
+  &quot;task_count&quot;: 15,
   &quot;areas&quot;: [
     &quot;checkpoint&quot;,
     &quot;data&quot;,
@@ -74,7 +77,7 @@
     &quot;monitoring&quot;,
     &quot;training&quot;
   ],
-  &quot;release_gate_count&quot;: 8,
+  &quot;release_gate_count&quot;: 9,
   &quot;execute_guard&quot;: &quot;FMOPS_ALLOW_PRODUCTION_EXECUTE&quot;
 }</pre>
   </section>

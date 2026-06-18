@@ -19,6 +19,25 @@ DEFAULT_REQUIRED_DIMENSIONS = (
     "edge_efficiency",
 )
 
+LOWER_IS_BETTER_GATES = {
+    "action_l2",
+    "calibration_error",
+    "cer",
+    "der",
+    "eer",
+    "error_rate",
+    "frame_action_latency_ms",
+    "latency_ms",
+    "memory_gb",
+    "perplexity",
+    "power_w",
+    "speaker_eer",
+    "steps_to_success",
+    "tool_error_rate",
+    "unsafe_action_rate",
+    "wer",
+}
+
 
 @dataclass(frozen=True)
 class Benchmark:
@@ -88,6 +107,8 @@ class EvaluationSuite:
         if name.startswith("min_"):
             return f"{name}>={value}"
         if name.startswith("max_"):
+            return f"{name}<={value}"
+        if name in LOWER_IS_BETTER_GATES:
             return f"{name}<={value}"
         return f"{name}>={value}"
 

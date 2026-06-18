@@ -29,6 +29,12 @@ class EvaluationRunnerTest(unittest.TestCase):
             self.assertIn(modality, summary["modalities"])
         self.assertIn("local-jsonl", summary["harnesses"])
 
+    def test_markdown_formats_lower_is_better_gates(self) -> None:
+        markdown = self.platform.evaluation.to_markdown()
+        self.assertIn("wer<=0.18", markdown)
+        self.assertIn("cer<=0.12", markdown)
+        self.assertNotIn("wer>=0.18", markdown)
+
     def test_default_runner_executes_real_smoke_samples(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output = Path(temp_dir) / "eval.json"
