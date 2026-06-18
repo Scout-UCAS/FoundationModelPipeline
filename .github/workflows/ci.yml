@@ -21,5 +21,4 @@ jobs:
           PYTHONPATH=src python -m fmops.cli schema-validate
           PYTHONPATH=src python -m fmops.cli validate
       - name: Run tests
-        run: PYTHONPATH=src python -m unittest discover -s tests -p "test_platform.py"
-
+        run: PYTHONPATH=src python -m unittest discover -s tests

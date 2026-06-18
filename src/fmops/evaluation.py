@@ -11,6 +11,7 @@ DEFAULT_REQUIRED_DIMENSIONS = (
     "general",
     "reasoning",
     "multimodal_understanding",
+    "audio_speech",
     "vla",
     "long_context",
     "tool_calling",

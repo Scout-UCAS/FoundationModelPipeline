@@ -34,9 +34,9 @@ class EvaluationRunnerTest(unittest.TestCase):
             output = Path(temp_dir) / "eval.json"
             path = EvaluationRunner(self.platform.evaluation).write_report(output, model_id="unit-smoke")
             payload = json.loads(path.read_text())
-            self.assertEqual(8, payload["summary"]["benchmark_count"])
-            self.assertEqual(8, payload["summary"]["sample_count"])
-            self.assertEqual(8, payload["summary"]["passed"])
+            self.assertEqual(9, payload["summary"]["benchmark_count"])
+            self.assertEqual(9, payload["summary"]["sample_count"])
+            self.assertEqual(9, payload["summary"]["passed"])
             transcripts = output.parent / "eval_transcripts"
             self.assertTrue((transcripts / "general_multilingual_core.jsonl").exists())
 

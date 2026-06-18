@@ -23,7 +23,10 @@ class PlatformConfigTest(unittest.TestCase):
         summary = self.platform.data.summary()
         self.assertGreaterEqual(summary["actual_tb"], 2500)
         self.assertGreaterEqual(summary["language_count"], 20)
-        self.assertEqual({"pure_text", "multimodal", "video_pretraining", "vla"}, set(summary["modalities"]))
+        self.assertEqual(
+            {"pure_text", "multimodal", "video_pretraining", "audio_speech", "vla"},
+            set(summary["modalities"]),
+        )
 
     def test_architecture_suite_covers_all_required_families(self) -> None:
         families = {candidate.family for candidate in self.platform.architectures.candidates}
@@ -47,4 +50,3 @@ class PlatformConfigTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

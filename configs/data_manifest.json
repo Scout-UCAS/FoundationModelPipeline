@@ -6,6 +6,7 @@
       "pure_text",
       "multimodal",
       "video_pretraining",
+      "audio_speech",
       "vla"
     ],
     "quality_gates": {
@@ -81,6 +82,17 @@
       "tags": ["video", "caption", "temporal"]
     },
     {
+      "name": "audio_speech_multilingual_corpus",
+      "source_type": "open_source",
+      "modalities": ["audio_speech"],
+      "languages": ["en", "zh", "ja", "ko", "de", "fr", "es", "pt", "it", "ru", "ar", "hi", "id", "vi", "th", "tr", "pl", "nl", "sv", "uk", "he", "ms"],
+      "size_tb": 125,
+      "quality_score": 0.82,
+      "duplicate_rate": 0.045,
+      "license": "mixed-permissive-with-provenance",
+      "tags": ["speech", "asr", "tts", "audio-caption", "speaker"]
+    },
+    {
       "name": "autonomous_driving_video_actions",
       "source_type": "business",
       "modalities": ["video_pretraining", "vla"],
@@ -139,19 +151,19 @@
   "processing_stages": [
     {
       "name": "ingest_normalize",
-      "operations": ["schema_mapping", "license_tagging", "language_id", "content_type_routing", "hash_indexing"],
+      "operations": ["schema_mapping", "license_tagging", "language_id", "content_type_routing", "audio_decode_resample", "vad_segmentation", "hash_indexing"],
       "output": "versioned_raw_shards",
       "owner": "data-platform"
     },
     {
       "name": "clean_filter",
-      "operations": ["html_boilerplate_removal", "pii_redaction", "toxicity_filtering", "low_information_filtering", "ocr_noise_repair"],
+      "operations": ["html_boilerplate_removal", "pii_redaction", "toxicity_filtering", "low_information_filtering", "ocr_noise_repair", "audio_denoise_vad_filter"],
       "output": "clean_candidate_shards",
       "owner": "data-quality"
     },
     {
       "name": "deduplicate",
-      "operations": ["exact_hash_dedup", "minhash_lsh_near_dedup", "embedding_near_dedup", "video_shot_dedup", "trajectory_dedup"],
+      "operations": ["exact_hash_dedup", "minhash_lsh_near_dedup", "embedding_near_dedup", "audio_fingerprint_dedup", "video_shot_dedup", "trajectory_dedup"],
       "output": "deduplicated_shards",
       "owner": "data-quality"
     },
@@ -163,13 +175,13 @@
     },
     {
       "name": "quality_assess",
-      "operations": ["perplexity_quality_score", "aesthetic_score", "video_motion_score", "instruction_following_proxy", "vla_success_proxy"],
+      "operations": ["perplexity_quality_score", "aesthetic_score", "video_motion_score", "asr_wer_proxy", "speaker_balance_score", "instruction_following_proxy", "vla_success_proxy"],
       "output": "quality_ranked_pool",
       "owner": "model-quality"
     },
     {
       "name": "pack_shard",
-      "operations": ["sequence_packing", "multimodal_sample_packing", "deterministic_sharding", "manifest_snapshot"],
+      "operations": ["sequence_packing", "multimodal_sample_packing", "audio_text_sample_packing", "deterministic_sharding", "manifest_snapshot"],
       "output": "train_ready_mixture_shards",
       "owner": "data-platform"
     }
@@ -180,9 +192,10 @@
       "total_tb": 150,
       "objective": "stabilize tokenizer, optimizer, and early curriculum",
       "modality_targets": {
-        "pure_text": 0.72,
+        "pure_text": 0.69,
         "multimodal": 0.16,
         "video_pretraining": 0.08,
+        "audio_speech": 0.03,
         "vla": 0.04
       },
       "language_targets": {
@@ -197,9 +210,10 @@
       "total_tb": 1700,
       "objective": "maximize broad language, code, knowledge, and multimodal coverage",
       "modality_targets": {
-        "pure_text": 0.58,
+        "pure_text": 0.54,
         "multimodal": 0.22,
         "video_pretraining": 0.15,
+        "audio_speech": 0.04,
         "vla": 0.05
       },
       "language_targets": {
@@ -215,8 +229,9 @@
       "objective": "improve temporal understanding and image-video grounding",
       "modality_targets": {
         "pure_text": 0.20,
-        "multimodal": 0.34,
-        "video_pretraining": 0.38,
+        "multimodal": 0.31,
+        "video_pretraining": 0.37,
+        "audio_speech": 0.04,
         "vla": 0.08
       },
       "language_targets": {
@@ -231,10 +246,11 @@
       "total_tb": 120,
       "objective": "bind perception, language instruction, and action policy traces",
       "modality_targets": {
-        "pure_text": 0.10,
-        "multimodal": 0.20,
-        "video_pretraining": 0.25,
-        "vla": 0.45
+        "pure_text": 0.08,
+        "multimodal": 0.19,
+        "video_pretraining": 0.24,
+        "audio_speech": 0.05,
+        "vla": 0.44
       },
       "language_targets": {
         "en": 0.40,
@@ -248,10 +264,11 @@
       "total_tb": 80,
       "objective": "raise high-quality reasoning, tool-use, and instruction-following density",
       "modality_targets": {
-        "pure_text": 0.62,
-        "multimodal": 0.18,
+        "pure_text": 0.59,
+        "multimodal": 0.17,
         "video_pretraining": 0.08,
-        "vla": 0.12
+        "audio_speech": 0.05,
+        "vla": 0.11
       },
       "language_targets": {
         "en": 0.42,
@@ -262,4 +279,3 @@
     }
   ]
 }
-

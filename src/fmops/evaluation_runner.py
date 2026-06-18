@@ -19,13 +19,18 @@ LOWER_IS_BETTER = {
     "action_l2",
     "calibration_error",
     "cost_per_success",
+    "cer",
+    "der",
+    "eer",
     "frame_action_latency_ms",
     "memory_gb",
     "power_w",
     "prefill_ms",
+    "speaker_eer",
     "steps_to_success",
     "tool_error_rate",
     "unsafe_action_rate",
+    "wer",
 }
 
 
@@ -303,6 +308,17 @@ class EvaluationRunner:
             "memory_gb": 4.0,
             "power_w": 25.0,
             "frame_action_latency_ms": 30.0,
+            "scores": {
+                "wer": 0.0,
+                "cer": 0.0,
+                "der": 0.0,
+                "eer": 0.0,
+                "speaker_eer": 0.0,
+                "bleu": 1.0,
+                "caption_cider": 1.0,
+                "clap_score": 1.0,
+                "mos": 4.5,
+            },
         }
         return [_sample_from_payload(payload, fallback_benchmark=benchmark.name, index=0)]
 

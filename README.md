@@ -1,10 +1,37 @@
 # Foundation Model Ops
 
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Core](https://img.shields.io/badge/core-stdlib_only-green)
+![Status](https://img.shields.io/badge/status-control_plane_reference-orange)
+![Tests](https://img.shields.io/badge/tests-unittest-lightgrey)
+
 Primary language: English. For the Chinese version, see [README.zh-CN.md](README.zh-CN.md).
 
 Foundation Model Ops is a runnable control-plane framework for next-generation foundation model programs. It turns a broad research and engineering plan into validated configuration, executable pipelines, production adapter plans, reference model implementations, evaluation reports, deployment checks, and audit-ready artifacts.
 
 The framework is intentionally lightweight: the core uses the Python standard library, while the architecture reference implementations use PyTorch as an optional dependency. The implementation now includes both local dry-run orchestration and production integration adapters for data lakes, distributed schedulers, model conversion, evaluation harnesses, monitoring, release gates, and serving validation.
+
+## Project Status
+
+This repository is a control-plane reference, not a pretrained model release. It is designed to make a foundation-model program reviewable and reproducible: every major decision has a config file, every external production handoff has a preflight check, and every local smoke path can be run from a clean checkout.
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| Config validation | Runnable | `fmops schema-validate` and `fmops validate` cover the full program config set. |
+| Local orchestration | Runnable | Data, training, evaluation, deployment, dashboard, report, plugin, and tracking commands write artifacts locally. |
+| Native training smoke tests | Runnable | Small PyTorch loops cover Pre-training, SFT, RL, and Agentic RL when the optional training extra is installed. |
+| Production execution | Adapter-backed | Spark, Ray, Slurm, evaluation harnesses, conversion, monitoring, and serving tools are guarded by `production-check`. |
+| Audio and speech | Planned plus smoke-tested | Audio-speech data, mixture slots, benchmark catalog entries, release evaluation, and JSONL smoke samples are represented; full ASR/TTS/audio model training is delegated to external backends. |
+
+## Supported Modalities
+
+| Modality | Data coverage | Training role | Evaluation role |
+| --- | --- | --- | --- |
+| Text and code | Web, books, academic, code, math, instruction, preference, agent traces | LM pretraining, SFT, RL, agentic RL | General, reasoning, long-context, tools, agents |
+| Image/document multimodal | Image-text, OCR, VQA, documents, charts, diagrams | VLM pretraining and instruction alignment | VLM, OCR, chart, document QA |
+| Video | Video-language, egocentric video, driving video | Temporal and video-language alignment | Video QA, temporal reasoning, long video |
+| Audio and speech | ASR, speech translation, TTS, audio captioning, speaker, noise/enhancement | Speech/audio adapter pretraining, spoken instruction tuning, speech translation, TTS/enhancement handoff | ASR WER/CER, speech translation BLEU, audio captioning, speaker EER/DER, MOS |
+| VLA/action | Robotics, embodiment, driving, simulators | Action-policy imitation, RL, agentic RL | Task success, action error, safety, closed-loop replay |
 
 ## Overall Workflow
 
@@ -17,7 +44,7 @@ The diagram shows the full research-to-production loop: governed data ingestion,
 1. Large-scale training data system
    - Integrates open-source, newly collected, and business/internal data.
    - Models data cleaning, deduplication, clustering, quality assessment, lineage, and staged mixture design.
-   - Covers pure text, multimodal image-text, video pretraining, and VLA data.
+   - Covers pure text, multimodal image-text, video pretraining, audio/speech, and VLA data.
    - The default manifest targets 2500T+ scale and 20+ languages.
 
 2. Architecture research and fair comparison
@@ -31,7 +58,7 @@ The diagram shows the full research-to-production loop: governed data ingestion,
    - The default hardware target is 50 nodes x 8 H100 GPUs = 400 GPUs.
 
 4. Comprehensive evaluation system
-   - Covers general capability, reasoning, multimodal understanding, VLA, long context, tool calling, agent capability, and edge deployment efficiency.
+   - Covers general capability, reasoning, multimodal understanding, audio/speech, VLA, long context, tool calling, agent capability, and edge deployment efficiency.
    - Produces JSON reports and normalized evaluation weights for release decisions.
 
 5. Mature framework kernel
@@ -137,7 +164,9 @@ PYTHONPATH=src python -m fmops.cli registry
 PYTHONPATH=src python -m fmops.cli datasets --priority P0
 PYTHONPATH=src python -m fmops.cli datasets --family VLA-robotics
 PYTHONPATH=src python -m fmops.cli datasets --modality video
+PYTHONPATH=src python -m fmops.cli datasets --modality audio
 PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla
+PYTHONPATH=src python -m fmops.cli benchmarks --dimension audio_speech
 PYTHONPATH=src python -m fmops.cli benchmarks --harness lm-eval
 ```
 
@@ -230,10 +259,10 @@ make dashboard
 | --- | --- | --- |
 | 2500T+ data system across open-source, newly collected, and business data | `configs/data_manifest.json`, `configs/datasets_catalog.json`, `src/fmops/data.py`, `src/fmops/data_pipeline.py`, `src/fmops/dataset_catalog.py`, `jobs/data_ingest.py`, `jobs/data_quality.py`, `jobs/data_mixture.py` | `fmops data-plan`, `fmops datasets`, `fmops data-run`, `production-plan --area data`, `production-check --area data` |
 | Cleaning, deduplication, clustering, quality assessment, lineage, contamination checks, and staged mixture design | Data operation graph in `configs/data_manifest.json`; production adapter tasks in `configs/production_integration.json`; lineage artifacts from `DataPipelineRunner` | `fmops data-run`, `python jobs/data_quality.py`, `python jobs/data_mixture.py`, guarded `production-run --area data` |
-| LLM/VLM/video/VLA dataset documentation with download links | Human-readable directory in this README and `README.zh-CN.md`; machine-readable catalog in `configs/datasets_catalog.json` | `fmops datasets --priority P0`, `fmops datasets --family VLA-robotics`, `fmops datasets --modality video` |
+| LLM/VLM/video/audio/VLA dataset documentation with download links | Human-readable directory in this README and `README.zh-CN.md`; machine-readable catalog in `configs/datasets_catalog.json` | `fmops datasets --priority P0`, `fmops datasets --family VLA-robotics`, `fmops datasets --modality audio`, `fmops datasets --modality video` |
 | Twenty next-generation architecture families with fair comparison | `configs/architecture_experiments.json`, `src/fmops/architecture_impl.py`, `src/fmops/architectures.py`, `src/fmops/registry.py`, `tests/test_architecture_impl.py` | `fmops registry`, `fmops arch-compare`, `python -m unittest discover -s tests -p "test_architecture_impl.py"` |
 | 400-GPU Pre-training, SFT, RL, and Agentic RL pipeline | `configs/training_pipeline.json`, `src/fmops/training_runner.py`, `src/fmops/native_training.py`, `train/pretrain.py`, `train/sft.py`, `train/rl.py`, `train/agentic_rl.py`, `jobs/training_launch.py` | `fmops train-plan`, `fmops train-run`, native smoke commands under "Quick Start", guarded `production-run --area training` |
-| Real evaluation system and benchmark catalog | `configs/evaluation_suite.json`, `configs/benchmark_catalog.json`, `src/fmops/evaluation.py`, `src/fmops/evaluation_runner.py`, `src/fmops/benchmark_catalog.py`, `eval/run.py`, `eval/smoke/*`, `jobs/evaluation_launch.py` | `fmops eval-plan`, `fmops benchmarks`, `fmops eval-run`, `python eval/run.py --samples-dir ...`, guarded `production-run --area evaluation` |
+| Real evaluation system, including audio/speech gates | `configs/evaluation_suite.json`, `configs/benchmark_catalog.json`, `src/fmops/evaluation.py`, `src/fmops/evaluation_runner.py`, `src/fmops/benchmark_catalog.py`, `eval/run.py`, `eval/smoke/*`, `jobs/evaluation_launch.py` | `fmops eval-plan`, `fmops benchmarks --dimension audio_speech`, `fmops eval-run`, `python eval/run.py --samples-dir ...`, guarded `production-run --area evaluation` |
 | Checkpoint conversion, deployment validation, monitoring, governance, and release gates | `src/fmops/checkpoint.py`, `src/fmops/deployment.py`, `src/fmops/production.py`, `jobs/checkpoint_convert.py`, `jobs/deployment_validate.py`, `jobs/monitoring_export.py`, `jobs/release_gate.py` | `fmops checkpoint-convert`, `fmops deploy-check`, `fmops production-plan`, `fmops production-check`, guarded `fmops production-run` |
 | Framework maturity layer | `src/fmops/schema.py`, `src/fmops/tracking.py`, `src/fmops/plugins.py`, `src/fmops/dashboard.py`, tests, CI, Makefile targets | `fmops schema-validate`, `fmops track-run`, `fmops plugins`, `fmops dashboard`, `make validate`, `make test` |
 
@@ -245,11 +274,11 @@ Defines the large-scale training data system:
 
 - Target scale: 2500T+.
 - Minimum languages: 20+.
-- Required modalities: pure text, multimodal, video pretraining, VLA.
+- Required modalities: pure text, multimodal, video pretraining, audio/speech, VLA.
 - Data sources: open source, newly collected, and business/internal.
 - Quality gates: minimum quality score and maximum duplicate rate.
 - Processing stages: ingestion, cleaning, deduplication, clustering, quality assessment, packing.
-- Mixture stages: warmup, core pretraining, multimodal/video expansion, VLA alignment, reasoning final stage.
+- Mixture stages: warmup, core pretraining, multimodal/video/audio expansion, VLA alignment, reasoning final stage.
 
 ### `configs/datasets_catalog.json`
 
@@ -288,6 +317,7 @@ Defines release-quality evaluation:
 - General multilingual capability.
 - Reasoning, math, and code.
 - Multimodal understanding.
+- Audio and speech understanding.
 - VLA action policy.
 - Long context.
 - Tool calling.
@@ -298,9 +328,9 @@ Defines release-quality evaluation:
 
 Defines the machine-readable benchmark catalog:
 
-- 100+ LLM, VLM, video, audio, VLA, agent, tool-use, long-context, safety, and efficiency benchmarks.
+- 100+ LLM, VLM, video, audio/speech, VLA, agent, tool-use, long-context, safety, and efficiency benchmarks.
 - Dimension, family, modality, primary metric, supported harnesses, download URL, license notes, and tags.
-- Filterable through `PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla`.
+- Filterable through commands such as `PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla` and `PYTHONPATH=src python -m fmops.cli benchmarks --dimension audio_speech`.
 
 ### `configs/production_integration.json`
 
@@ -308,7 +338,7 @@ Defines the production adapter layer:
 
 - Data lake tasks for source ingestion, lineage, cleaning, deduplication, clustering, quality scoring, contamination checks, and staged mixture materialization.
 - Slurm-based 400-GPU launch tasks for Pre-training, SFT, RL, and Agentic RL.
-- Evaluation harness tasks for lm-eval, VLMEvalKit/OpenCompass-style multimodal evaluation, simulator-backed VLA, and agent benchmarks.
+- Evaluation harness tasks for lm-eval, VLMEvalKit/OpenCompass-style multimodal evaluation, ESPnet/SpeechBrain/NeMo-style audio/speech evaluation, simulator-backed VLA, and agent benchmarks.
 - Checkpoint conversion to HF/safetensors-style serving artifacts.
 - vLLM, TensorRT-LLM, GenAI-Perf, and car-side replay deployment validation.
 - Prometheus/Grafana monitoring bundle export.
@@ -372,6 +402,20 @@ PYTHONPATH=src python -m fmops.cli production-check --area training
 FMOPS_ALLOW_PRODUCTION_EXECUTE=1 PYTHONPATH=src python -m fmops.cli production-run --area training --execute
 ```
 
+### Audio and Speech Training Plan
+
+Audio/speech training is represented in the data mixture, dataset catalog, evaluation suite, and benchmark catalog. The current repo keeps the local native trainer text-first for fast smoke tests; production audio training should be attached through external commands such as ESPnet, SpeechBrain, NVIDIA NeMo, fairseq, torchaudio, or an in-house ASR/TTS/audio-language stack.
+
+| Stage | Dataset families | Objective | Typical metrics |
+| --- | --- | --- | --- |
+| Acoustic self-supervised pretraining | LibriLight, VoxPopuli, MLS, Common Voice unlabeled, internal consented speech | Learn robust speech/audio encoders and codec-aligned representations | masked prediction loss, downstream SUPERB/HEAR transfer |
+| ASR and multilingual speech recognition | LibriSpeech, Common Voice, MLS, GigaSpeech, AISHELL, WenetSpeech, FLEURS | Speech-to-text alignment across accents, domains, and languages | WER, CER, per-language macro average |
+| Speech translation | CoVoST 2, MuST-C, FLEURS, Europarl-ST, internal parallel speech | Audio-to-text translation and spoken multilingual interaction | BLEU, COMET, source WER |
+| Audio-language understanding | AudioSet, AudioCaps, Clotho, MusicCaps, WavCaps, AVQA | Audio captioning, event reasoning, audio QA, audio-video grounding | accuracy, F1, CIDEr, CLAPScore |
+| Speaker and diarization | VoxCeleb, AMI, LibriCSS, CALLHOME-style licensed data | Speaker verification, diarization, meeting understanding | EER, DER, JER |
+| TTS and speech generation | LJSpeech, VCTK, LibriTTS, CSS10, M-AILABS, internal consented voice | Text-to-speech, voice consistency, spoken assistant output | MOS, UTMOS, speaker similarity, intelligibility WER |
+| Enhancement and robustness | MUSAN, DNS Challenge, CHiME, noise/reverb augmentation | Noisy speech robustness, denoising, far-field speech | PESQ, STOI, DNSMOS, WER under noise |
+
 ## Evaluation Entry Point
 
 ```bash
@@ -396,7 +440,7 @@ PYTHONPATH=src python eval/run.py \
   --fail-on-gate
 ```
 
-Each JSONL sample may contain `id`, `benchmark`, `dataset`, `prompt` or `question`, `answer` or `reference`, optional `choices`, optional `prediction`, and task-specific fields such as `expected_tool`, `reference_action`, `success`, `collision_free`, `prefill_ms`, `decode_tok_s`, `memory_gb`, and `power_w`.
+Each JSONL sample may contain `id`, `benchmark`, `dataset`, `prompt` or `question`, `answer` or `reference`, optional `choices`, optional `prediction`, and task-specific fields such as `audio_uri`, `audio_duration_s`, `source_language`, `target_language`, `speaker_id`, `expected_tool`, `reference_action`, `success`, `collision_free`, `prefill_ms`, `decode_tok_s`, `memory_gb`, and `power_w`. Audio/speech metrics can be supplied under `scores`, for example `wer`, `cer`, `bleu`, `caption_cider`, `clap_score`, `speaker_eer`, `der`, and `mos`.
 
 ## Evaluation Benchmark Catalog
 
@@ -412,6 +456,11 @@ Each JSONL sample may contain `id`, `benchmark`, `dataset`, `prompt` or `questio
 | LightEval | Lightweight Hugging Face evaluation framework for LLM benchmark execution. | [huggingface/lighteval](https://github.com/huggingface/lighteval) |
 | VLMEvalKit | VLM evaluation toolkit covering image, document, OCR, chart, video, and multimodal reasoning benchmarks. | [open-compass/VLMEvalKit](https://github.com/open-compass/VLMEvalKit) |
 | lmms-eval | Large multimodal model evaluation harness for image, video, and multi-image tasks. | [EvolvingLMMs-Lab/lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) |
+| ESPnet | End-to-end speech processing toolkit for ASR, speech translation, TTS, enhancement, diarization, and benchmark recipes. | [espnet/espnet](https://github.com/espnet/espnet) |
+| SpeechBrain | PyTorch speech toolkit covering ASR, speaker recognition, enhancement, separation, and recipes. | [speechbrain/speechbrain](https://github.com/speechbrain/speechbrain) |
+| NVIDIA NeMo | Speech and multimodal toolkit with ASR, TTS, speaker, diarization, and deployment-oriented recipes. | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) |
+| SUPERB / S3PRL | Speech representation benchmark and self-supervised speech toolkit. | [s3prl/s3prl](https://github.com/s3prl/s3prl) |
+| HEAR | Holistic Evaluation of Audio Representations benchmark toolkit. | [hearbenchmark/hear-eval-kit](https://github.com/hearbenchmark/hear-eval-kit) |
 | OpenAI Evals | Model behavior evaluation framework and example eval registry. | [openai/evals](https://github.com/openai/evals) |
 
 ### Benchmarks by Capability
@@ -427,7 +476,8 @@ Each JSONL sample may contain `id`, `benchmark`, `dataset`, `prompt` or `questio
 | Agent and web workflow | [WebArena](https://github.com/web-arena-x/webarena), [VisualWebArena](https://github.com/web-arena-x/visualwebarena), [MiniWoB++](https://github.com/Farama-Foundation/miniwob-plusplus), [Mind2Web](https://huggingface.co/datasets/osunlp/Mind2Web), [OSWorld](https://github.com/xlang-ai/OSWorld), [WorkArena](https://github.com/ServiceNow/WorkArena), [BrowserGym](https://github.com/ServiceNow/BrowserGym), [GAIA](https://huggingface.co/datasets/gaia-benchmark/GAIA), [AgentBench](https://github.com/THUDM/AgentBench), [AppWorld](https://github.com/StonyBrookNLP/appworld), [WebVoyager](https://github.com/MinorJerry/WebVoyager) | task success, steps to success, unsafe action rate, cost per success |
 | Image VLM understanding | [MMMU](https://github.com/MMMU-Benchmark/MMMU), [MMMU-Pro](https://github.com/MMMU-Benchmark/MMMU-Pro), [MMBench](https://github.com/open-compass/MMBench), [MMStar](https://github.com/MMStar-Benchmark/MMStar), [SEED-Bench](https://github.com/AILab-CVC/SEED-Bench), [MM-Vet](https://github.com/yuweihao/MM-Vet), [POPE](https://github.com/AoiDragon/POPE), [HallusionBench](https://github.com/tianyi-lab/HallusionBench), [RealWorldQA](https://huggingface.co/datasets/xai-org/RealworldQA), [VQAv2](https://visualqa.org/download.html), [GQA](https://cs.stanford.edu/people/dorarad/gqa/download.html), [OK-VQA](https://okvqa.allenai.org/download.html), [A-OKVQA](https://allenai.org/project/a-okvqa/home), [VizWiz](https://vizwiz.org/tasks-and-datasets/vqa/) | accuracy, hallucination rate, visual reasoning accuracy, answer grounding |
 | Document, OCR, chart, and diagram VLM | [TextVQA](https://textvqa.org/), [DocVQA](https://www.docvqa.org/), [ChartQA](https://github.com/vis-nlp/ChartQA), [InfoVQA](https://rrc.cvc.uab.es/?ch=17), [OCRBench](https://github.com/Yuliang-Liu/MultimodalOCR), [AI2D](https://allenai.org/data/diagrams), [ScienceQA](https://scienceqa.github.io/), [MathVista](https://github.com/lupantech/MathVista), [TallyQA](https://github.com/manoja328/tallyqa), [ScreenSpot](https://github.com/njucckevin/SeeClick) | OCR F1, table/chart QA accuracy, diagram reasoning, grounded pointing accuracy |
-| Video, audio, and omni-modal | [Video-MME](https://github.com/BradyFU/Video-MME), [MVBench](https://github.com/OpenGVLab/Ask-Anything/tree/main/video_chat2), [LongVideoBench](https://github.com/longvideobench/LongVideoBench), [MLVU](https://github.com/JUNJIE99/MLVU), [TempCompass](https://github.com/llyx97/TempCompass), [EgoSchema](https://github.com/egoschema/EgoSchema), [NExT-QA](https://github.com/doc-doc/NExT-QA), [ActivityNet-QA](https://github.com/MILVLG/activitynet-qa), [TVQA](https://tvqa.cs.unc.edu/), [TGIF-QA](https://github.com/YunseokJANG/tgif-qa), [AVQA](https://mn.cs.tsinghua.edu.cn/avqa/), [AudioCaps](https://audiocaps.github.io/), [AudioSet](https://research.google.com/audioset/), [Clotho](https://zenodo.org/records/4783391), [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) | temporal reasoning, video QA accuracy, audio-caption quality, cross-modal grounding |
+| Video and omni-modal | [Video-MME](https://github.com/BradyFU/Video-MME), [MVBench](https://github.com/OpenGVLab/Ask-Anything/tree/main/video_chat2), [LongVideoBench](https://github.com/longvideobench/LongVideoBench), [MLVU](https://github.com/JUNJIE99/MLVU), [TempCompass](https://github.com/llyx97/TempCompass), [EgoSchema](https://github.com/egoschema/EgoSchema), [NExT-QA](https://github.com/doc-doc/NExT-QA), [ActivityNet-QA](https://github.com/MILVLG/activitynet-qa), [TVQA](https://tvqa.cs.unc.edu/), [TGIF-QA](https://github.com/YunseokJANG/tgif-qa), [AVQA](https://mn.cs.tsinghua.edu.cn/avqa/) | temporal reasoning, video QA accuracy, cross-modal grounding |
+| Audio and speech | [LibriSpeech](https://www.openslr.org/12), [Common Voice](https://commonvoice.mozilla.org/en/datasets), [GigaSpeech](https://github.com/SpeechColab/GigaSpeech), [VoxPopuli](https://github.com/facebookresearch/voxpopuli), [FLEURS](https://huggingface.co/datasets/google/fleurs), [CoVoST 2](https://github.com/facebookresearch/covost), [SUPERB](https://github.com/s3prl/s3prl), [HEAR](https://github.com/hearbenchmark/hear-eval-kit), [Speech Commands](https://www.tensorflow.org/datasets/catalog/speech_commands), [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/), [AudioCaps](https://audiocaps.github.io/), [AudioSet](https://research.google.com/audioset/), [Clotho](https://zenodo.org/records/4783391), [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) | WER, CER, BLEU, accuracy, caption CIDEr, CLAPScore, speaker EER, DER, MOS |
 | VLA, robotics, and embodied tasks | [LIBERO](https://libero-project.github.io/main.html), [CALVIN](https://calvin.cs.uni-freiburg.de/), [RLBench](https://github.com/stepjam/RLBench), [Language Table](https://github.com/google-research/language-table), [Meta-World](https://meta-world.github.io/), [ManiSkill](https://maniskill.readthedocs.io/), [robomimic](https://robomimic.github.io/docs/datasets/overview.html), [RoboCasa](https://github.com/robocasa/robocasa), [robosuite](https://github.com/ARISE-Initiative/robosuite), [SimplerEnv](https://github.com/simpler-env/SimplerEnv), [Open X-Embodiment](https://github.com/google-deepmind/open_x_embodiment), [Habitat-Lab](https://github.com/facebookresearch/habitat-lab), [AI2-THOR](https://ai2thor.allenai.org/), [ALFRED](https://askforalfred.com/), [TEACh](https://github.com/alexa/teach), [BEHAVIOR-1K](https://behavior.stanford.edu/) | task success, recovery rate, action L2, collision-free rate, instruction grounding |
 | Autonomous driving and car-side VLA | [nuScenes](https://www.nuscenes.org/download), [nuPlan](https://www.nuplan.org/nuplan), [Waymo Open Dataset](https://waymo.com/open/), [Argoverse 2](https://argoverse.org/av2.html), [INTERACTION](https://interaction-dataset.com/), [CARLA Leaderboard](https://leaderboard.carla.org/), [Bench2Drive](https://github.com/Thinklab-SJTU/Bench2Drive), [NAVSIM](https://github.com/autonomousvision/navsim), [BDD100K](https://bdd-data.berkeley.edu/), [KITTI](https://www.cvlibs.net/datasets/kitti/) | route completion, driving score, collision rate, planning error, frame-to-action latency |
 | Safety, bias, and robustness | [BBQ](https://github.com/nyu-mll/BBQ), [RealToxicityPrompts](https://github.com/allenai/real-toxicity-prompts), [ToxiGen](https://github.com/microsoft/TOXIGEN), [HarmBench](https://github.com/centerforaisafety/HarmBench), [SafetyBench](https://github.com/thu-coai/SafetyBench), [AdvBench](https://github.com/llm-attacks/llm-attacks), [JailbreakBench](https://github.com/JailbreakBench/jailbreakbench), [DecodingTrust](https://github.com/AI-secure/DecodingTrust) | policy violation rate, jailbreak success rate, bias score, robustness under perturbation |
@@ -503,9 +553,9 @@ print(out["loss"], out["logits"].shape)
 The framework has two dataset layers:
 
 - `configs/datasets_catalog.json` is the machine-readable catalog used by CLI and tests.
-- This README contains a broader human-readable directory for planning large LLM, VLM, video, VLA, robotics, and autonomous-driving data programs.
+- This README contains a broader human-readable directory for planning large LLM, VLM, video, audio/speech, VLA, robotics, and autonomous-driving data programs.
 
-Important note: many web, image, video, and robot datasets provide metadata, URLs, video IDs, timestamps, RLDS/TFDS shards, or access portals rather than immediately downloadable media. Production ingestion must preserve source terms, license, opt-out handling, privacy checks, and actual rehydration success rates.
+Important note: many web, image, video, audio, and robot datasets provide metadata, URLs, video IDs, timestamps, RLDS/TFDS shards, or access portals rather than immediately downloadable media. Production ingestion must preserve source terms, license, opt-out handling, consent, privacy checks, and actual rehydration success rates.
 
 ### Machine-readable P0 Catalog
 
@@ -524,6 +574,17 @@ Important note: many web, image, video, and robot datasets provide metadata, URL
 | InternVid | Video-pretrain | video, text | Hugging Face | [link](https://huggingface.co/datasets/OpenGVLab/InternVid) |
 | HowTo100M | Video-pretrain | video, text, audio | official | [link](https://www.di.ens.fr/willow/research/howto100m/) |
 | Ego4D | Video-egocentric | video, text, audio | application | [link](https://ego4d-data.org/docs/start-here/) |
+| Common Voice | Audio-ASR | audio, speech, text | official | [link](https://commonvoice.mozilla.org/en/datasets) |
+| LibriSpeech | Audio-ASR | audio, speech, text | official | [link](https://www.openslr.org/12) |
+| LibriLight | Audio-self-supervised | audio, speech | official | [link](https://github.com/facebookresearch/libri-light) |
+| Multilingual LibriSpeech | Audio-ASR | audio, speech, text | official | [link](https://www.openslr.org/94/) |
+| GigaSpeech | Audio-ASR | audio, speech, text | official | [link](https://github.com/SpeechColab/GigaSpeech) |
+| VoxPopuli | Audio-ASR | audio, speech, text | official | [link](https://github.com/facebookresearch/voxpopuli) |
+| FLEURS | Audio-ASR-ST | audio, speech, text | Hugging Face | [link](https://huggingface.co/datasets/google/fleurs) |
+| CoVoST 2 | Audio-speech-translation | audio, speech, text | official | [link](https://github.com/facebookresearch/covost) |
+| AISHELL-1 | Audio-ASR | audio, speech, text | official | [link](https://www.openslr.org/33/) |
+| WenetSpeech | Audio-ASR | audio, speech, text | official | [link](https://github.com/wenet-e2e/WenetSpeech) |
+| AudioSet | Audio-understanding | audio, text | official | [link](https://research.google.com/audioset/) |
 | Open X-Embodiment | VLA-robotics | video, text, action, proprioception | official | [link](https://github.com/google-deepmind/open_x_embodiment) |
 | DROID | VLA-robotics | video, text, action, proprioception | official | [link](https://droid-dataset.github.io/droid/the-droid-dataset) |
 | BridgeData V2 | VLA-robotics | video, text, action, proprioception | official | [link](https://rail-berkeley.github.io/bridgedata/) |
@@ -624,6 +685,47 @@ Important note: many web, image, video, and robot datasets provide metadata, URL
 | VideoInstruct-100K / VideoChatGPT / ShareGPT4Video / LLaVA-Video-178K | Video instruction and QA data | Video LMM instruction training | [VideoInstruct-100K](https://huggingface.co/datasets/MBZUAI/VideoInstruct-100K), [VideoChatGPT](https://huggingface.co/datasets/lmms-lab/VideoChatGPT), [ShareGPT4Video](https://huggingface.co/datasets/ShareGPT4Video/ShareGPT4Video), [LLaVA-Video-178K](https://huggingface.co/datasets/lmms-lab/LLaVA-Video-178K) |
 | BDD100K | Driving videos and frames | Car-side video pretraining and perception | [BDD100K](https://bdd-data.berkeley.edu/) |
 
+### Audio, Speech, TTS, and Audio-Language Data
+
+This section intentionally groups speech and audio data by training role. "All speech data" in production should be interpreted as "all licensed, consented, source-traceable speech data that passes governance gates"; public corpora still need license, speaker consent, biometric, regional, and benchmark-contamination review before ingestion.
+
+| Dataset | Scope | Typical use | Access |
+| --- | --- | --- | --- |
+| Common Voice | Crowdsourced multilingual read speech across 100+ languages | Multilingual ASR, accent robustness, low-resource coverage | [Common Voice datasets](https://commonvoice.mozilla.org/en/datasets) |
+| LibriSpeech | 1000h English read speech from audiobooks | ASR baseline, clean/noisy split evaluation | [OpenSLR 12](https://www.openslr.org/12) |
+| LibriLight | 60K hours unlabeled English audiobook speech | Self-supervised speech pretraining | [facebookresearch/libri-light](https://github.com/facebookresearch/libri-light) |
+| Multilingual LibriSpeech | 50K+ hours multilingual read speech | Multilingual ASR and encoder pretraining | [OpenSLR 94](https://www.openslr.org/94/) |
+| GigaSpeech | 10K hours English transcribed audio from diverse domains | Large ASR and speech-LM supervised training | [SpeechColab/GigaSpeech](https://github.com/SpeechColab/GigaSpeech) |
+| SPGISpeech | 5000h English financial-domain speech | Domain ASR and robustness | [OpenSLR 100](https://www.openslr.org/100/) |
+| TED-LIUM 3 | TED talk speech and transcripts | ASR, long-form speech, lecture domain | [OpenSLR 51](https://www.openslr.org/51/) |
+| VoxPopuli | European Parliament speech, labeled and unlabeled, 23 languages | Multilingual ASR, speech representation, domain transfer | [facebookresearch/voxpopuli](https://github.com/facebookresearch/voxpopuli) |
+| FLEURS | 102-language speech benchmark | ASR, language ID, speech translation evaluation | [google/fleurs](https://huggingface.co/datasets/google/fleurs) |
+| CoVoST 2 | Speech translation data derived from Common Voice | Speech-to-text translation | [facebookresearch/covost](https://github.com/facebookresearch/covost) |
+| MuST-C | Multilingual TED speech translation corpus | End-to-end speech translation | [MuST-C](https://ict.fbk.eu/must-c/) |
+| Europarl-ST | Parliamentary speech translation | Speech translation and domain robustness | [Europarl-ST](https://www.mllp.upv.es/europarl-st/) |
+| AISHELL-1 / AISHELL-2 / AISHELL-3 / AISHELL-4 | Mandarin ASR, multi-speaker, TTS, and meeting speech corpora | Chinese ASR, TTS, far-field and meeting speech | [AISHELL-1 OpenSLR 33](https://www.openslr.org/33/), [AISHELL-2 OpenSLR 62](https://www.openslr.org/62/), [AISHELL-3 OpenSLR 93](https://www.openslr.org/93/), [AISHELL-4 OpenSLR 111](https://www.openslr.org/111/) |
+| WenetSpeech | 10K+ hours Mandarin speech | Large Chinese ASR and weak supervision | [wenet-e2e/WenetSpeech](https://github.com/wenet-e2e/WenetSpeech) |
+| MagicData Mandarin | Mandarin conversational/read speech | Chinese ASR and domain adaptation | [OpenSLR 68](https://www.openslr.org/68/) |
+| KsponSpeech | Large Korean spontaneous speech | Korean ASR and conversational speech | [KsponSpeech](https://aihub.or.kr/aihubdata/data/view.do?dataSetSn=123) |
+| JSUT / JVS | Japanese single-speaker and multi-speaker speech | Japanese TTS and ASR adaptation | [JSUT](https://sites.google.com/site/shinnosuketakamichi/publication/jsut), [JVS](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus) |
+| VoxCeleb1 / VoxCeleb2 | Speaker recognition from interview videos | Speaker verification, speaker embeddings | [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/) |
+| AMI Meeting Corpus | Multi-party meetings with audio and transcripts | Diarization, meeting ASR, long-form speech understanding | [AMI Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) |
+| LibriCSS | Multi-speaker overlapped speech from LibriSpeech | Continuous speech separation and diarization | [LibriCSS](https://github.com/chenzhuo1011/libri_css) |
+| CHiME | Noisy and far-field speech challenge data | Robust ASR, enhancement, separation | [CHiME Challenge](https://www.chimechallenge.org/) |
+| MUSAN | Music, speech, and noise for augmentation | Noise augmentation and robustness | [OpenSLR 17](https://www.openslr.org/17/) |
+| DNS Challenge | Clean/noisy speech and noise suppression challenge data | Speech enhancement and denoising | [microsoft/DNS-Challenge](https://github.com/microsoft/DNS-Challenge) |
+| Speech Commands | Keyword spotting commands | Command recognition and tiny audio benchmarks | [TensorFlow Datasets](https://www.tensorflow.org/datasets/catalog/speech_commands) |
+| SLURP / Fluent Speech Commands / MASSIVE | Spoken language understanding and intent data | Spoken command following and assistant NLU | [SLURP](https://github.com/pswietojanski/slurp), [Fluent Speech Commands](https://fluent.ai/fluent-speech-commands-a-dataset-for-spoken-language-understanding-research/), [MASSIVE](https://github.com/alexa/massive) |
+| AudioSet | 2M human-labeled YouTube sound clips | Audio event classification and audio-language pretraining | [AudioSet](https://research.google.com/audioset/) |
+| AudioCaps | Audio captions derived from AudioSet clips | Audio captioning and audio-to-text alignment | [AudioCaps](https://audiocaps.github.io/) |
+| Clotho | Audio clips with multiple captions | Audio captioning and retrieval | [Clotho](https://zenodo.org/records/4783391) |
+| WavCaps | Large weakly-labeled audio caption corpus | Audio-language pretraining and captioning | [WavCaps](https://huggingface.co/datasets/cvssp/WavCaps) |
+| MusicCaps | Music clips with text descriptions | Music understanding and captioning | [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) |
+| LJSpeech | 24h single-speaker English TTS | TTS smoke tests and baseline synthesis | [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) |
+| VCTK | Multi-speaker English speech with accents | Multi-speaker TTS, accent and speaker adaptation | [VCTK](https://datashare.ed.ac.uk/handle/10283/3443) |
+| LibriTTS / LibriTTS-R | TTS-ready audiobook speech | Multi-speaker TTS and speech generation | [OpenSLR 60](https://www.openslr.org/60/), [OpenSLR 141](https://www.openslr.org/141/) |
+| CSS10 / M-AILABS | Public multilingual TTS corpora | Multilingual TTS baselines | [CSS10](https://github.com/Kyubyong/css10), [M-AILABS](https://www.caito.de/2019/01/the-m-ailabs-speech-dataset/) |
+
 ### VLA, Robotics, and Autonomous Driving Data
 
 | Dataset | Scope | Typical use | Access |
@@ -648,8 +750,10 @@ Important note: many web, image, video, and robot datasets provide metadata, URL
 | P0 | LLM base | FineWeb, FineWeb-2, Dolma, RedPajama-V2, DCLM, The Stack v2, OpenWebMath, FineMath, Common Pile |
 | P0 | VLM base | DataComp, Re-LAION, CC12M, WIT, OBELICS, MINT-1T, ShareGPT4V, COCO, Visual Genome |
 | P0 | Video base | InternVid, HowTo100M, HD-VILA-100M, Panda-70M, Ego4D, EPIC-KITCHENS, ActivityNet Captions |
+| P0 | Audio/speech base | Common Voice, LibriSpeech, LibriLight, MLS, GigaSpeech, VoxPopuli, FLEURS, CoVoST 2, AISHELL, WenetSpeech, AudioSet |
 | P0 | VLA base | Open X-Embodiment, DROID, BridgeData V2, RoboNet, CALVIN, LIBERO, LeRobot, nuPlan, nuScenes, Waymo |
 | P1 | Post-training | Tulu 3 SFT, UltraChat, OpenHermes, OpenOrca, OASST, HH-RLHF, UltraFeedback, Nectar, ToolBench, SWE-bench |
+| P1 | Spoken interaction and TTS | SLURP, Fluent Speech Commands, MASSIVE, LJSpeech, VCTK, LibriTTS, CSS10, M-AILABS, DNS Challenge, MUSAN |
 | P1 | OCR and documents | DocVQA, TextVQA, ChartQA, AI2D, ScienceQA, InfographicVQA, OCR-VQA |
 | P1 | Car-side efficiency and planning | BDD100K, Argoverse 2, KITTI, nuImages, Cityscapes, INTERACTION, Mapillary Vistas |
 
@@ -660,11 +764,13 @@ Production ingestion should enforce:
 - Dataset license allowlist and source-specific terms review.
 - URL/media rehydration logs and actual sample availability statistics.
 - PII, face, plate, child-safety, NSFW, and unsafe-content filtering.
+- Voice consent, speaker identity, biometric-use, and voice-cloning restrictions for all speech and TTS data.
 - Exact and near-duplicate removal.
 - Benchmark contamination checks.
 - Data lineage: source URL, crawl snapshot, processing version, filtering version, and shard digest.
 - Language identification and domain sampling caps.
 - OCR/ASR quality filtering.
+- Audio quality controls: VAD, clipping detection, sample-rate normalization, SNR thresholds, overlap labels, transcript WER proxies, accent/language balance, and noisy/far-field tags.
 - VLA schema normalization for action space, proprioception, camera pose, episode boundaries, success labels, failure labels, embodiment IDs, and language instructions.
 - Autonomous-driving separation of perception, prediction, planning, and closed-loop simulation data.
 

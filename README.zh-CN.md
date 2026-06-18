@@ -1,11 +1,38 @@
 # Foundation Model Ops
 
-这个工程把“下一代基础模型研发平台”的四块能力落成可运行的控制面：
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Core](https://img.shields.io/badge/core-stdlib_only-green)
+![Status](https://img.shields.io/badge/status-control_plane_reference-orange)
+![Tests](https://img.shields.io/badge/tests-unittest-lightgrey)
 
-1. 大规模训练数据体系：统一描述开源数据、新采集数据、业务数据，覆盖纯文本、多模态、视频预训练和 VLA 数据，内置清洗、去重、聚类、质量评估和多阶段配比校验。
+这个工程把“下一代基础模型研发平台”的能力落成可运行、可校验、可审计的控制面：
+
+1. 大规模训练数据体系：统一描述开源数据、新采集数据、业务数据，覆盖纯文本、多模态、视频预训练、音频/语音和 VLA 数据，内置清洗、去重、聚类、质量评估和多阶段配比校验。
 2. 下一代模型结构实验：在统一 tokenizer、训练 token、上下文长度、优化器和 GPU 预算下，对 MoE、Sparse / Linear Attention、RNN-like Backbone、SSM / Selective Scan、Retention / RetNet、Long Convolution、MLA / KV-Compressed Attention、Hybrid、MTP、Latent Reasoning、dLLM、Memory-augmented、Mixture-of-Depths、Test-Time Memory、Token-free Byte-level LLM、Omni-modal、VLA / Robotics Transformer、JEPA / Latent World Model、Neuromorphic / Spiking Backbone、Reasoning-native 等二十类候选做公平对比。
 3. 四百卡级训练 pipeline：覆盖 Pre-training、SFT、RL、Agentic RL，并把数据交接、分布式训练、稳定性监控、模型转换和部署验证写入统一配置。
-4. 全面评测体系：覆盖通用能力、推理、多模态理解、VLA、长上下文、工具调用、Agent 能力和车端部署效率。
+4. 全面评测体系：覆盖通用能力、推理、多模态理解、音频/语音、VLA、长上下文、工具调用、Agent 能力和车端部署效率。
+
+## 项目状态
+
+这个仓库是控制面 reference，不是预训练模型发布。它的目标是让基础模型项目像成熟开源项目一样可复现、可检查：每个关键决策有配置文件，每个生产外部命令有 preflight，每个本地 smoke path 都能从干净 checkout 跑起来。
+
+| 方向 | 状态 | 说明 |
+| --- | --- | --- |
+| 配置校验 | 可运行 | `fmops schema-validate` 和 `fmops validate` 覆盖全部 program config。 |
+| 本地编排 | 可运行 | 数据、训练、评测、部署、dashboard、report、plugin、tracking 都能写本地 artifact。 |
+| 本地训练 smoke | 可运行 | 安装可选 training extra 后，Pre-training、SFT、RL、Agentic RL 有轻量 PyTorch loop。 |
+| 生产执行 | adapter 接入 | Spark、Ray、Slurm、评测 harness、checkpoint、监控和 serving 工具由 `production-check` 保护。 |
+| 音频/语音 | 已建模并有 smoke | 数据、配比、benchmark catalog、release eval、JSONL smoke 样例已接入；完整 ASR/TTS/audio-language 训练通过外部后端接入。 |
+
+## 支持模态
+
+| 模态 | 数据覆盖 | 训练作用 | 评测作用 |
+| --- | --- | --- | --- |
+| 文本和代码 | web、书籍、论文、代码、数学、指令、偏好、agent trace | LM pretraining、SFT、RL、Agentic RL | 通用、推理、长上下文、工具、Agent |
+| 图像/文档多模态 | 图文、OCR、VQA、文档、图表、diagram | VLM pretraining 和 instruction alignment | VLM、OCR、图表、文档 QA |
+| 视频 | video-language、egocentric video、driving video | 时序和视频语言对齐 | 视频问答、时序推理、长视频 |
+| 音频/语音 | ASR、speech translation、TTS、audio caption、speaker、noise/enhancement | 语音/音频 adapter 预训练、spoken instruction tuning、语音翻译、TTS/增强 handoff | WER/CER、BLEU、audio caption、speaker EER/DER、MOS |
+| VLA/action | 机器人、具身、自动驾驶、仿真 | action-policy imitation、RL、Agentic RL | task success、action error、安全、closed-loop replay |
 
 ## 整体流程图
 
@@ -22,7 +49,9 @@ PYTHONPATH=src python -m fmops.cli validate
 PYTHONPATH=src python -m fmops.cli schema-validate
 PYTHONPATH=src python -m fmops.cli registry
 PYTHONPATH=src python -m fmops.cli datasets --priority P0
+PYTHONPATH=src python -m fmops.cli datasets --modality audio
 PYTHONPATH=src python -m fmops.cli benchmarks --dimension vla
+PYTHONPATH=src python -m fmops.cli benchmarks --dimension audio_speech
 PYTHONPATH=src python -m fmops.cli data-run
 PYTHONPATH=src python -m fmops.cli train-run --stage SFT
 PYTHONPATH=src python -m fmops.cli eval-run --model-id reference-model
@@ -58,7 +87,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 
 ## 配置说明
 
-- `configs/data_manifest.json`：2500T+ 数据源、20+ 语言覆盖、处理阶段和多阶段数据配比。
+- `configs/data_manifest.json`：2500T+ 数据源、20+ 语言覆盖、处理阶段和多阶段数据配比，必需模态包含纯文本、多模态、视频预训练、音频/语音和 VLA。
 - `configs/datasets_catalog.json`：机器可读的数据集 registry，包含下载链接、license、schema、模态、优先级和风险标签。
 - `configs/benchmark_catalog.json`：机器可读的评测 benchmark registry，包含维度、模态、指标、harness、下载链接和 license 备注。
 - `configs/architecture_experiments.json`：统一实验设置、结构候选、核心指标和综合排序。
@@ -86,7 +115,7 @@ PYTHONPATH=src python -m unittest discover -s tests
 - `jobs/checkpoint_convert.py`、`jobs/deployment_validate.py`：checkpoint serving conversion 和 vLLM/TensorRT-LLM/GenAI-Perf 部署验证 wrapper。
 - `jobs/monitoring_export.py`、`jobs/release_gate.py`：Prometheus/Grafana 告警包和发布门禁聚合。
 - `train/pretrain.py`、`train/sft.py`、`train/rl.py`、`train/agentic_rl.py`：四阶段训练入口，支持本地 `dry-run`、真实本地 `native` 训练和生产 `external` 分发；生产模式读取 `FMOPS_PRETRAIN_BACKEND_COMMAND`、`FMOPS_SFT_BACKEND_COMMAND`、`FMOPS_RL_BACKEND_COMMAND`、`FMOPS_AGENTIC_RL_BACKEND_COMMAND` 或通用 `FMOPS_TRAINING_BACKEND_COMMAND`。
-- `src/fmops/evaluation_runner.py` 和 `eval/run.py`：真实本地评测 runner，读取 JSONL 样本/预测、调用外部模型命令或 HTTP endpoint、计算指标并输出可追踪 JSON report。
+- `src/fmops/evaluation_runner.py` 和 `eval/run.py`：真实本地评测 runner，读取 JSONL 样本/预测、调用外部模型命令或 HTTP endpoint、计算指标并输出可追踪 JSON report；已支持 WER/CER、speaker EER、DER、MOS 等音频/语音指标。
 - `src/fmops/checkpoint.py`：checkpoint conversion manifest，支持训练格式到推理格式的元数据转换和可选文件复制。
 - `src/fmops/deployment.py`：服务端/车端部署 envelope 检查，包括 latency、memory、decode throughput、power。
 - `src/fmops/tracking.py`：实验 run manifest，记录配置引用、artifact、metric 和运行环境。
@@ -114,10 +143,10 @@ make dashboard
 | --- | --- | --- |
 | 2500T+ 大规模数据体系，覆盖开源、新采集和业务数据 | `configs/data_manifest.json`、`configs/datasets_catalog.json`、`src/fmops/data.py`、`src/fmops/data_pipeline.py`、`src/fmops/dataset_catalog.py`、`jobs/data_ingest.py`、`jobs/data_quality.py`、`jobs/data_mixture.py` | `fmops data-plan`、`fmops datasets`、`fmops data-run`、`production-plan --area data`、`production-check --area data` |
 | 清洗、去重、聚类、质量评估、lineage、污染检查和多阶段配比 | `configs/data_manifest.json` 中的数据操作图，`configs/production_integration.json` 中的生产数据任务，`DataPipelineRunner` 的 lineage artifact | `fmops data-run`、`python jobs/data_quality.py`、`python jobs/data_mixture.py`、受保护的 `production-run --area data` |
-| LLM/VLM/视频/VLA 数据集和下载链接 | 英文主 README、`README.zh-CN.md` 的数据目录，机器可读 `configs/datasets_catalog.json` | `fmops datasets --priority P0`、`fmops datasets --family VLA-robotics`、`fmops datasets --modality video` |
+| LLM/VLM/视频/音频/VLA 数据集和下载链接 | 英文主 README、`README.zh-CN.md` 的数据目录，机器可读 `configs/datasets_catalog.json` | `fmops datasets --priority P0`、`fmops datasets --family VLA-robotics`、`fmops datasets --modality audio`、`fmops datasets --modality video` |
 | 二十类下一代模型结构和公平对比 | `configs/architecture_experiments.json`、`src/fmops/architecture_impl.py`、`src/fmops/architectures.py`、`src/fmops/registry.py`、`tests/test_architecture_impl.py` | `fmops registry`、`fmops arch-compare`、`python -m unittest discover -s tests -p "test_architecture_impl.py"` |
 | 四百卡 Pre-training、SFT、RL、Agentic RL 训练 pipeline | `configs/training_pipeline.json`、`src/fmops/training_runner.py`、`src/fmops/native_training.py`、`train/pretrain.py`、`train/sft.py`、`train/rl.py`、`train/agentic_rl.py`、`jobs/training_launch.py` | `fmops train-plan`、`fmops train-run`、快速开始里的 native smoke 命令、受保护的 `production-run --area training` |
-| 真实评测体系和 benchmark catalog | `configs/evaluation_suite.json`、`configs/benchmark_catalog.json`、`src/fmops/evaluation.py`、`src/fmops/evaluation_runner.py`、`src/fmops/benchmark_catalog.py`、`eval/run.py`、`eval/smoke/*`、`jobs/evaluation_launch.py` | `fmops eval-plan`、`fmops benchmarks`、`fmops eval-run`、`python eval/run.py --samples-dir ...`、受保护的 `production-run --area evaluation` |
+| 真实评测体系和 benchmark catalog，包含音频/语音 gate | `configs/evaluation_suite.json`、`configs/benchmark_catalog.json`、`src/fmops/evaluation.py`、`src/fmops/evaluation_runner.py`、`src/fmops/benchmark_catalog.py`、`eval/run.py`、`eval/smoke/*`、`jobs/evaluation_launch.py` | `fmops eval-plan`、`fmops benchmarks --dimension audio_speech`、`fmops eval-run`、`python eval/run.py --samples-dir ...`、受保护的 `production-run --area evaluation` |
 | Checkpoint 转换、部署验证、监控、治理和发布门禁 | `src/fmops/checkpoint.py`、`src/fmops/deployment.py`、`src/fmops/production.py`、`jobs/checkpoint_convert.py`、`jobs/deployment_validate.py`、`jobs/monitoring_export.py`、`jobs/release_gate.py` | `fmops checkpoint-convert`、`fmops deploy-check`、`fmops production-plan`、`fmops production-check`、受保护的 `fmops production-run` |
 | 成熟框架内核 | `src/fmops/schema.py`、`src/fmops/tracking.py`、`src/fmops/plugins.py`、`src/fmops/dashboard.py`、测试、CI、Makefile | `fmops schema-validate`、`fmops track-run`、`fmops plugins`、`fmops dashboard`、`make validate`、`make test` |
 
@@ -127,7 +156,7 @@ make dashboard
 
 - 数据：Spark/Ray 数据湖 ingestion、清洗、去重、聚类、质量评分、污染检查和多阶段配比 materialization。
 - 训练：Slurm 四百卡提交，覆盖 Pre-training、SFT、RL、Agentic RL，并写出 sbatch 脚本、环境、world size、gate 和 checkpoint root。
-- 评测：lm-eval、VLMEvalKit/OpenCompass、simulator/Agent/VLA adapter，统一接入 `configs/evaluation_suite.json` 的 benchmark/gate。
+- 评测：lm-eval、VLMEvalKit/OpenCompass、ESPnet/SpeechBrain/NeMo 风格音频/语音评测、simulator/Agent/VLA adapter，统一接入 `configs/evaluation_suite.json` 的 benchmark/gate。
 - Checkpoint：训练 checkpoint 到 HF/safetensors serving artifact 的转换审计。
 - 部署：vLLM、TensorRT-LLM、GenAI-Perf、车端 replay 的部署 envelope 检查。
 - 监控：Prometheus alert rules、Grafana dashboard 元数据、SLO。
@@ -144,6 +173,20 @@ FMOPS_ALLOW_PRODUCTION_EXECUTE=1 PYTHONPATH=src python -m fmops.cli production-r
 ```
 
 当前开发机如果没有 Spark、Slurm、lm-eval、vLLM 等外部依赖，`production-check` 会把对应任务标记为 blocked。这是保护行为，不是配置失败。
+
+## 音频/语音训练计划
+
+音频/语音已经进入数据配比、数据集 catalog、benchmark catalog、release evaluation 和 smoke 样例。当前仓库的本地 `native` trainer 仍保持轻量文本优先；完整 ASR、TTS、speech translation、audio-language、speaker、enhancement 训练建议通过 ESPnet、SpeechBrain、NVIDIA NeMo、fairseq、torchaudio 或内部训练栈以 external backend 方式接入。
+
+| 阶段 | 数据族 | 目标 | 常用指标 |
+| --- | --- | --- | --- |
+| 声学自监督预训练 | LibriLight、VoxPopuli、MLS、Common Voice unlabeled、内部授权语音 | 学习稳健 speech/audio encoder 和 codec 对齐表征 | masked prediction loss、SUPERB/HEAR transfer |
+| ASR 和多语种识别 | LibriSpeech、Common Voice、MLS、GigaSpeech、AISHELL、WenetSpeech、FLEURS | 跨口音、跨领域、跨语言 speech-to-text 对齐 | WER、CER、per-language macro average |
+| 语音翻译 | CoVoST 2、MuST-C、FLEURS、Europarl-ST、内部平行语音 | audio-to-text translation 和 spoken multilingual interaction | BLEU、COMET、source WER |
+| 音频语言理解 | AudioSet、AudioCaps、Clotho、MusicCaps、WavCaps、AVQA | audio caption、事件推理、audio QA、audio-video grounding | accuracy、F1、CIDEr、CLAPScore |
+| 说话人和分离/分段 | VoxCeleb、AMI、LibriCSS、CALLHOME-style 授权数据 | speaker verification、diarization、meeting understanding | EER、DER、JER |
+| TTS 和语音生成 | LJSpeech、VCTK、LibriTTS、CSS10、M-AILABS、内部授权 voice | text-to-speech、voice consistency、spoken assistant output | MOS、UTMOS、speaker similarity、intelligibility WER |
+| 增强和鲁棒性 | MUSAN、DNS Challenge、CHiME、noise/reverb augmentation | noisy speech robustness、denoising、far-field speech | PESQ、STOI、DNSMOS、noise WER |
 
 ## 评测入口
 
@@ -169,7 +212,7 @@ PYTHONPATH=src python eval/run.py \
   --fail-on-gate
 ```
 
-JSONL 样本支持 `id`、`benchmark`、`dataset`、`prompt`/`question`、`answer`/`reference`、`choices`、`prediction`，以及 `expected_tool`、`reference_action`、`success`、`collision_free`、`prefill_ms`、`decode_tok_s`、`memory_gb`、`power_w` 等任务字段。
+JSONL 样本支持 `id`、`benchmark`、`dataset`、`prompt`/`question`、`answer`/`reference`、`choices`、`prediction`，以及 `audio_uri`、`audio_duration_s`、`source_language`、`target_language`、`speaker_id`、`expected_tool`、`reference_action`、`success`、`collision_free`、`prefill_ms`、`decode_tok_s`、`memory_gb`、`power_w` 等任务字段。音频/语音分数可以放在 `scores` 中，例如 `wer`、`cer`、`bleu`、`caption_cider`、`clap_score`、`speaker_eer`、`der`、`mos`。
 
 ## 评测 Benchmark 目录
 
@@ -185,6 +228,11 @@ JSONL 样本支持 `id`、`benchmark`、`dataset`、`prompt`/`question`、`answe
 | LightEval | Hugging Face 轻量 LLM 评测框架。 | [huggingface/lighteval](https://github.com/huggingface/lighteval) |
 | VLMEvalKit | VLM 评测工具，覆盖图片、文档、OCR、图表、视频和多模态推理。 | [open-compass/VLMEvalKit](https://github.com/open-compass/VLMEvalKit) |
 | lmms-eval | 大多模态模型评测 harness，覆盖图片、视频和多图任务。 | [EvolvingLMMs-Lab/lmms-eval](https://github.com/EvolvingLMMs-Lab/lmms-eval) |
+| ESPnet | 端到端语音处理工具，覆盖 ASR、speech translation、TTS、enhancement、diarization 和大量 recipe。 | [espnet/espnet](https://github.com/espnet/espnet) |
+| SpeechBrain | PyTorch 语音工具，覆盖 ASR、speaker、enhancement、separation 和 recipe。 | [speechbrain/speechbrain](https://github.com/speechbrain/speechbrain) |
+| NVIDIA NeMo | 语音和多模态工具，覆盖 ASR、TTS、speaker、diarization 和部署型 recipe。 | [NVIDIA/NeMo](https://github.com/NVIDIA/NeMo) |
+| SUPERB / S3PRL | 语音表征 benchmark 和自监督语音工具。 | [s3prl/s3prl](https://github.com/s3prl/s3prl) |
+| HEAR | Holistic Evaluation of Audio Representations 音频表征 benchmark。 | [hearbenchmark/hear-eval-kit](https://github.com/hearbenchmark/hear-eval-kit) |
 | OpenAI Evals | 模型行为评测框架和示例 eval registry。 | [openai/evals](https://github.com/openai/evals) |
 
 ### 按能力维度划分的 Benchmark
@@ -200,7 +248,8 @@ JSONL 样本支持 `id`、`benchmark`、`dataset`、`prompt`/`question`、`answe
 | Agent 和网页工作流 | [WebArena](https://github.com/web-arena-x/webarena), [VisualWebArena](https://github.com/web-arena-x/visualwebarena), [MiniWoB++](https://github.com/Farama-Foundation/miniwob-plusplus), [Mind2Web](https://huggingface.co/datasets/osunlp/Mind2Web), [OSWorld](https://github.com/xlang-ai/OSWorld), [WorkArena](https://github.com/ServiceNow/WorkArena), [BrowserGym](https://github.com/ServiceNow/BrowserGym), [GAIA](https://huggingface.co/datasets/gaia-benchmark/GAIA), [AgentBench](https://github.com/THUDM/AgentBench), [AppWorld](https://github.com/StonyBrookNLP/appworld), [WebVoyager](https://github.com/MinorJerry/WebVoyager) | task success、steps to success、unsafe action rate、cost per success |
 | 图片 VLM 理解 | [MMMU](https://github.com/MMMU-Benchmark/MMMU), [MMMU-Pro](https://github.com/MMMU-Benchmark/MMMU-Pro), [MMBench](https://github.com/open-compass/MMBench), [MMStar](https://github.com/MMStar-Benchmark/MMStar), [SEED-Bench](https://github.com/AILab-CVC/SEED-Bench), [MM-Vet](https://github.com/yuweihao/MM-Vet), [POPE](https://github.com/AoiDragon/POPE), [HallusionBench](https://github.com/tianyi-lab/HallusionBench), [RealWorldQA](https://huggingface.co/datasets/xai-org/RealworldQA), [VQAv2](https://visualqa.org/download.html), [GQA](https://cs.stanford.edu/people/dorarad/gqa/download.html), [OK-VQA](https://okvqa.allenai.org/download.html), [A-OKVQA](https://allenai.org/project/a-okvqa/home), [VizWiz](https://vizwiz.org/tasks-and-datasets/vqa/) | accuracy、hallucination rate、visual reasoning accuracy、answer grounding |
 | 文档、OCR、图表和图示 VLM | [TextVQA](https://textvqa.org/), [DocVQA](https://www.docvqa.org/), [ChartQA](https://github.com/vis-nlp/ChartQA), [InfoVQA](https://rrc.cvc.uab.es/?ch=17), [OCRBench](https://github.com/Yuliang-Liu/MultimodalOCR), [AI2D](https://allenai.org/data/diagrams), [ScienceQA](https://scienceqa.github.io/), [MathVista](https://github.com/lupantech/MathVista), [TallyQA](https://github.com/manoja328/tallyqa), [ScreenSpot](https://github.com/njucckevin/SeeClick) | OCR F1、table/chart QA accuracy、diagram reasoning、grounded pointing accuracy |
-| 视频、音频和全模态 | [Video-MME](https://github.com/BradyFU/Video-MME), [MVBench](https://github.com/OpenGVLab/Ask-Anything/tree/main/video_chat2), [LongVideoBench](https://github.com/longvideobench/LongVideoBench), [MLVU](https://github.com/JUNJIE99/MLVU), [TempCompass](https://github.com/llyx97/TempCompass), [EgoSchema](https://github.com/egoschema/EgoSchema), [NExT-QA](https://github.com/doc-doc/NExT-QA), [ActivityNet-QA](https://github.com/MILVLG/activitynet-qa), [TVQA](https://tvqa.cs.unc.edu/), [TGIF-QA](https://github.com/YunseokJANG/tgif-qa), [AVQA](https://mn.cs.tsinghua.edu.cn/avqa/), [AudioCaps](https://audiocaps.github.io/), [AudioSet](https://research.google.com/audioset/), [Clotho](https://zenodo.org/records/4783391), [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) | temporal reasoning、video QA accuracy、audio-caption quality、cross-modal grounding |
+| 视频和全模态 | [Video-MME](https://github.com/BradyFU/Video-MME), [MVBench](https://github.com/OpenGVLab/Ask-Anything/tree/main/video_chat2), [LongVideoBench](https://github.com/longvideobench/LongVideoBench), [MLVU](https://github.com/JUNJIE99/MLVU), [TempCompass](https://github.com/llyx97/TempCompass), [EgoSchema](https://github.com/egoschema/EgoSchema), [NExT-QA](https://github.com/doc-doc/NExT-QA), [ActivityNet-QA](https://github.com/MILVLG/activitynet-qa), [TVQA](https://tvqa.cs.unc.edu/), [TGIF-QA](https://github.com/YunseokJANG/tgif-qa), [AVQA](https://mn.cs.tsinghua.edu.cn/avqa/) | temporal reasoning、video QA accuracy、cross-modal grounding |
+| 音频和语音 | [LibriSpeech](https://www.openslr.org/12), [Common Voice](https://commonvoice.mozilla.org/en/datasets), [GigaSpeech](https://github.com/SpeechColab/GigaSpeech), [VoxPopuli](https://github.com/facebookresearch/voxpopuli), [FLEURS](https://huggingface.co/datasets/google/fleurs), [CoVoST 2](https://github.com/facebookresearch/covost), [SUPERB](https://github.com/s3prl/s3prl), [HEAR](https://github.com/hearbenchmark/hear-eval-kit), [Speech Commands](https://www.tensorflow.org/datasets/catalog/speech_commands), [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/), [AudioCaps](https://audiocaps.github.io/), [AudioSet](https://research.google.com/audioset/), [Clotho](https://zenodo.org/records/4783391), [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) | WER、CER、BLEU、accuracy、caption CIDEr、CLAPScore、speaker EER、DER、MOS |
 | VLA、机器人和具身任务 | [LIBERO](https://libero-project.github.io/main.html), [CALVIN](https://calvin.cs.uni-freiburg.de/), [RLBench](https://github.com/stepjam/RLBench), [Language Table](https://github.com/google-research/language-table), [Meta-World](https://meta-world.github.io/), [ManiSkill](https://maniskill.readthedocs.io/), [robomimic](https://robomimic.github.io/docs/datasets/overview.html), [RoboCasa](https://github.com/robocasa/robocasa), [robosuite](https://github.com/ARISE-Initiative/robosuite), [SimplerEnv](https://github.com/simpler-env/SimplerEnv), [Open X-Embodiment](https://github.com/google-deepmind/open_x_embodiment), [Habitat-Lab](https://github.com/facebookresearch/habitat-lab), [AI2-THOR](https://ai2thor.allenai.org/), [ALFRED](https://askforalfred.com/), [TEACh](https://github.com/alexa/teach), [BEHAVIOR-1K](https://behavior.stanford.edu/) | task success、recovery rate、action L2、collision-free rate、instruction grounding |
 | 自动驾驶和车端 VLA | [nuScenes](https://www.nuscenes.org/download), [nuPlan](https://www.nuplan.org/nuplan), [Waymo Open Dataset](https://waymo.com/open/), [Argoverse 2](https://argoverse.org/av2.html), [INTERACTION](https://interaction-dataset.com/), [CARLA Leaderboard](https://leaderboard.carla.org/), [Bench2Drive](https://github.com/Thinklab-SJTU/Bench2Drive), [NAVSIM](https://github.com/autonomousvision/navsim), [BDD100K](https://bdd-data.berkeley.edu/), [KITTI](https://www.cvlibs.net/datasets/kitti/) | route completion、driving score、collision rate、planning error、frame-to-action latency |
 | 安全、偏见和鲁棒性 | [BBQ](https://github.com/nyu-mll/BBQ), [RealToxicityPrompts](https://github.com/allenai/real-toxicity-prompts), [ToxiGen](https://github.com/microsoft/TOXIGEN), [HarmBench](https://github.com/centerforaisafety/HarmBench), [SafetyBench](https://github.com/thu-coai/SafetyBench), [AdvBench](https://github.com/llm-attacks/llm-attacks), [JailbreakBench](https://github.com/JailbreakBench/jailbreakbench), [DecodingTrust](https://github.com/AI-secure/DecodingTrust) | policy violation rate、jailbreak success rate、bias score、robustness under perturbation |
@@ -257,7 +306,7 @@ print(out["loss"], out["logits"].shape)
 
 ## 公开数据集目录
 
-下面整理的是 LLM、VLM、视频预训练、VLA/机器人/自动驾驶方向常用且公开可访问的数据源。这里的“下载链接”优先指官方数据卡、项目页或访问门户；很多网页/视频/机器人数据只提供 URL、metadata、RLDS/TFDS shard 或云桶路径，真实媒体文件需要按原始站点条款重新拉取。接入生产训练前必须逐项做 license、隐私、版权、地域合规、未成年人/敏感内容和 opt-out 审核。
+下面整理的是 LLM、VLM、视频预训练、音频/语音、VLA/机器人/自动驾驶方向常用且公开可访问的数据源。这里的“下载链接”优先指官方数据卡、项目页或访问门户；很多网页/视频/音频/机器人数据只提供 URL、metadata、RLDS/TFDS shard 或云桶路径，真实媒体文件需要按原始站点条款重新拉取。接入生产训练前必须逐项做 license、隐私、版权、地域合规、语音授权/声纹限制、未成年人/敏感内容和 opt-out 审核。
 
 ### 下载方式速查
 
@@ -432,6 +481,47 @@ print(out["loss"], out["logits"].shape)
 | LLaVA-Video-178K | 178K captions、960K open QA、196K MC QA | Video LMM 指令训练 | [lmms-lab/LLaVA-Video-178K](https://huggingface.co/datasets/lmms-lab/LLaVA-Video-178K) |
 | BDD100K | 100K driving videos、100M frames、GPS/IMU | 车端视频预训练、感知/轨迹 | [BDD100K portal](https://bdd-data.berkeley.edu/)、[toolkit](https://github.com/bdd100k/bdd100k) |
 
+### 音频、语音、TTS 和 Audio-Language 数据
+
+这里把语音/音频按训练角色分组。“所有语音数据”在生产中应理解为所有 license 清晰、speaker consent 可追踪、声纹/仿声用途被允许、通过治理门禁的数据；公开 corpus 也必须逐项做 license、隐私、声纹、生物识别和 benchmark contamination 审核。
+
+| 数据集 | 规模/内容 | 典型用途 | 下载/访问 |
+| --- | --- | --- | --- |
+| Common Voice | 100+ 语言 crowdsourced read speech | 多语种 ASR、口音鲁棒性、低资源覆盖 | [Common Voice](https://commonvoice.mozilla.org/en/datasets) |
+| LibriSpeech | 1000h English read speech | ASR baseline、clean/noisy split 评测 | [OpenSLR 12](https://www.openslr.org/12) |
+| LibriLight | 60K hours unlabeled English audiobook speech | 自监督语音预训练 | [facebookresearch/libri-light](https://github.com/facebookresearch/libri-light) |
+| Multilingual LibriSpeech | 50K+ hours multilingual read speech | 多语种 ASR 和 encoder 预训练 | [OpenSLR 94](https://www.openslr.org/94/) |
+| GigaSpeech | 10K hours English transcribed audio | 大规模 ASR 和 speech-LM 监督训练 | [SpeechColab/GigaSpeech](https://github.com/SpeechColab/GigaSpeech) |
+| SPGISpeech | 5000h English financial-domain speech | 垂直领域 ASR 和鲁棒性 | [OpenSLR 100](https://www.openslr.org/100/) |
+| TED-LIUM 3 | TED talk speech and transcripts | ASR、长语音、讲座领域 | [OpenSLR 51](https://www.openslr.org/51/) |
+| VoxPopuli | European Parliament speech，23 语言 labeled/unlabeled | 多语种 ASR、语音表征、领域迁移 | [facebookresearch/voxpopuli](https://github.com/facebookresearch/voxpopuli) |
+| FLEURS | 102-language speech benchmark | ASR、language ID、speech translation 评测 | [google/fleurs](https://huggingface.co/datasets/google/fleurs) |
+| CoVoST 2 | Common Voice 派生 speech translation | speech-to-text translation | [facebookresearch/covost](https://github.com/facebookresearch/covost) |
+| MuST-C | 多语种 TED speech translation corpus | 端到端语音翻译 | [MuST-C](https://ict.fbk.eu/must-c/) |
+| Europarl-ST | parliamentary speech translation | 语音翻译和领域鲁棒性 | [Europarl-ST](https://www.mllp.upv.es/europarl-st/) |
+| AISHELL-1 / AISHELL-2 / AISHELL-3 / AISHELL-4 | 普通话 ASR、多说话人、TTS、会议语音 | 中文 ASR、TTS、far-field、meeting speech | [AISHELL-1](https://www.openslr.org/33/)、[AISHELL-2](https://www.openslr.org/62/)、[AISHELL-3](https://www.openslr.org/93/)、[AISHELL-4](https://www.openslr.org/111/) |
+| WenetSpeech | 10K+ hours Mandarin speech | 大规模中文 ASR 和弱监督 | [wenet-e2e/WenetSpeech](https://github.com/wenet-e2e/WenetSpeech) |
+| MagicData Mandarin | Mandarin conversational/read speech | 中文 ASR 和领域适配 | [OpenSLR 68](https://www.openslr.org/68/) |
+| KsponSpeech | 大规模 Korean spontaneous speech | 韩语 ASR、conversation speech | [KsponSpeech](https://aihub.or.kr/aihubdata/data/view.do?dataSetSn=123) |
+| JSUT / JVS | 日语单说话人/多说话人语音 | 日语 TTS 和 ASR adaptation | [JSUT](https://sites.google.com/site/shinnosuketakamichi/publication/jsut)、[JVS](https://sites.google.com/site/shinnosuketakamichi/research-topics/jvs_corpus) |
+| VoxCeleb1 / VoxCeleb2 | interview video 中的 speaker recognition 数据 | speaker verification、speaker embedding | [VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/) |
+| AMI Meeting Corpus | 多人会议音频和 transcript | diarization、meeting ASR、long-form speech understanding | [AMI Corpus](https://groups.inf.ed.ac.uk/ami/corpus/) |
+| LibriCSS | LibriSpeech 派生 overlapped speech | continuous speech separation、diarization | [LibriCSS](https://github.com/chenzhuo1011/libri_css) |
+| CHiME | noisy/far-field speech challenge data | robust ASR、enhancement、separation | [CHiME Challenge](https://www.chimechallenge.org/) |
+| MUSAN | music/speech/noise augmentation corpus | 噪声增强和鲁棒性 | [OpenSLR 17](https://www.openslr.org/17/) |
+| DNS Challenge | clean/noisy speech and noise suppression data | speech enhancement、denoising | [microsoft/DNS-Challenge](https://github.com/microsoft/DNS-Challenge) |
+| Speech Commands | keyword spotting commands | command recognition、tiny audio benchmark | [TensorFlow Datasets](https://www.tensorflow.org/datasets/catalog/speech_commands) |
+| SLURP / Fluent Speech Commands / MASSIVE | spoken language understanding 和 intent 数据 | spoken command following、assistant NLU | [SLURP](https://github.com/pswietojanski/slurp)、[Fluent Speech Commands](https://fluent.ai/fluent-speech-commands-a-dataset-for-spoken-language-understanding-research/)、[MASSIVE](https://github.com/alexa/massive) |
+| AudioSet | 2M human-labeled YouTube sound clips | audio event classification、audio-language pretraining | [AudioSet](https://research.google.com/audioset/) |
+| AudioCaps | AudioSet 派生 audio captions | audio captioning、audio-to-text alignment | [AudioCaps](https://audiocaps.github.io/) |
+| Clotho | audio clips with multiple captions | audio captioning、retrieval | [Clotho](https://zenodo.org/records/4783391) |
+| WavCaps | large weakly-labeled audio caption corpus | audio-language pretraining、captioning | [WavCaps](https://huggingface.co/datasets/cvssp/WavCaps) |
+| MusicCaps | music clips with text descriptions | music understanding、captioning | [MusicCaps](https://google-research.github.io/seanet/musiclm/examples/) |
+| LJSpeech | 24h single-speaker English TTS | TTS smoke test 和 baseline synthesis | [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) |
+| VCTK | multi-speaker English speech with accents | multi-speaker TTS、accent/speaker adaptation | [VCTK](https://datashare.ed.ac.uk/handle/10283/3443) |
+| LibriTTS / LibriTTS-R | TTS-ready audiobook speech | multi-speaker TTS、speech generation | [OpenSLR 60](https://www.openslr.org/60/)、[OpenSLR 141](https://www.openslr.org/141/) |
+| CSS10 / M-AILABS | public multilingual TTS corpora | 多语种 TTS baseline | [CSS10](https://github.com/Kyubyong/css10)、[M-AILABS](https://www.caito.de/2019/01/the-m-ailabs-speech-dataset/) |
+
 ### VLA、机器人轨迹和自动驾驶数据
 
 | 数据集 | 规模/内容 | 典型用途 | 下载/访问 |
@@ -483,15 +573,19 @@ print(out["loss"], out["logits"].shape)
 | P0 | LLM base | FineWeb/FineWeb2、Dolma、RedPajama-V2、DCLM、The Stack v2、OpenWebMath、FineMath、Common Pile |
 | P0 | VLM base | DataComp、Re-LAION、CC12M、WIT、OBELICS、MINT-1T、ShareGPT4V、COCO/Visual Genome |
 | P0 | Video base | InternVid、HowTo100M、HD-VILA-100M、Panda-70M、Ego4D、EPIC-KITCHENS、ActivityNet Captions |
+| P0 | Audio/Speech base | Common Voice、LibriSpeech、LibriLight、MLS、GigaSpeech、VoxPopuli、FLEURS、CoVoST 2、AISHELL、WenetSpeech、AudioSet |
 | P0 | VLA base | Open X-Embodiment、DROID、BridgeData V2、RoboNet、CALVIN、LIBERO、LeRobot、nuPlan/nuScenes/Waymo |
 | P1 | Post-training | Tulu 3 SFT、UltraChat、OpenHermes、OpenOrca、OASST、HH-RLHF、UltraFeedback、Nectar、ToolBench、SWE-bench |
+| P1 | Spoken interaction / TTS | SLURP、Fluent Speech Commands、MASSIVE、LJSpeech、VCTK、LibriTTS、CSS10、M-AILABS、DNS Challenge、MUSAN |
 | P1 | 文档/OCR VLM | DocVQA、TextVQA、ChartQA、AI2D、ScienceQA、InfographicVQA、OCR-VQA |
 | P1 | 车端效率/规划 | BDD100K、Argoverse 2、KITTI、nuImages、Cityscapes、INTERACTION、Mapillary Vistas |
 
 ### 数据合规和质量门禁
 
 - 所有 web、图像、视频、字幕、ShareGPT 派生、平台用户交互数据都需要逐源记录 license、原始 URL、下载时间、过滤器版本和 opt-out 处理。
+- 所有语音/TTS/说话人数据都需要额外记录 speaker consent、声纹/生物识别限制、仿声/voice cloning 限制、地域合规和撤回机制。
 - 对 LAION/WebVid/HD-VILA/HowTo100M 等 URL rehydration 数据，必须保留“只下载 metadata”与“实际媒体文件”的差异统计，避免把论文规模误当成可用规模。
 - VLA 数据要统一 action space、camera pose、proprioception、language instruction、episode boundary、success/failure label，并保留 embodiment id。
 - 自动驾驶数据要区分 perception、prediction、planning、closed-loop simulation 数据；不要把只含感知标注的数据直接当成 VLA action 数据。
 - 进入 2500T+ 训练池前建议硬门禁：license allowlist、PII/人脸/车牌处理、NSFW/CSAM 安全过滤、近重复去重、benchmark contamination 检查、语言/领域采样上限、低质量 OCR/ASR 过滤。
+- 音频质量门禁建议包含 VAD、clipping 检测、sample-rate normalization、SNR 阈值、overlap label、ASR WER proxy、accent/language balance、noisy/far-field 标签。

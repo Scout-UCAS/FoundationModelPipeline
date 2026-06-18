@@ -33,7 +33,7 @@
       "gates": {
         "min_total_tb": 2500,
         "min_languages": 20,
-        "required_modalities": ["pure_text", "multimodal", "video_pretraining", "vla"]
+        "required_modalities": ["pure_text", "multimodal", "video_pretraining", "audio_speech", "vla"]
       },
       "owner": "data-platform",
       "timeout_seconds": 21600
@@ -180,6 +180,24 @@
       "timeout_seconds": 43200
     },
     {
+      "name": "run_audio_speech_eval",
+      "area": "evaluation",
+      "adapter": "espnet-speechbrain-nemo",
+      "description": "Run ASR, speech translation, audio captioning, speaker, diarization, TTS, and enhancement evaluation suites.",
+      "command": "{python} jobs/evaluation_launch.py --config-dir {config_dir} --model-id \"$FMOPS_MODEL_ID\" --benchmark audio_speech_core --harness espnet --output {artifact_root}/evaluation/audio_speech_eval.json --submit",
+      "required_binaries": ["python"],
+      "required_env": ["FMOPS_MODEL_ID", "FMOPS_MODEL_ENDPOINT", "FMOPS_AUDIO_EVAL_DATA_ROOT"],
+      "inputs": ["configs/evaluation_suite.json"],
+      "outputs": ["{artifact_root}/evaluation/audio_speech_eval.json"],
+      "gates": {
+        "wer": 0.18,
+        "cer": 0.12,
+        "accuracy": 0.75
+      },
+      "owner": "evaluation-platform",
+      "timeout_seconds": 43200
+    },
+    {
       "name": "run_vla_agent_eval",
       "area": "evaluation",
       "adapter": "simulator-agent-eval",
@@ -258,7 +276,7 @@
       "inputs": ["configs/production_integration.json"],
       "outputs": ["{artifact_root}/governance/release_gate_report.json"],
       "gates": {
-        "required_release_gates": 8
+        "required_release_gates": 9
       },
       "owner": "release",
       "timeout_seconds": 1800
@@ -274,7 +292,7 @@
     {
       "name": "data_scale_and_modalities_met",
       "source": "artifacts/production/data/ingestion_manifest.json",
-      "condition": "total_tb >= 2500 and language_count >= 20 and modalities include pure_text,multimodal,video_pretraining,vla",
+      "condition": "total_tb >= 2500 and language_count >= 20 and modalities include pure_text,multimodal,video_pretraining,audio_speech,vla",
       "owner": "data-platform"
     },
     {
@@ -299,6 +317,12 @@
       "name": "multimodal_vla_evaluation_passed",
       "source": "artifacts/production/evaluation/vla_agent_eval.json",
       "condition": "vla success_rate >= 0.58 and agent task_success >= 0.50",
+      "owner": "evaluation-platform"
+    },
+    {
+      "name": "audio_speech_evaluation_passed",
+      "source": "artifacts/production/evaluation/audio_speech_eval.json",
+      "condition": "wer <= 0.18 and cer <= 0.12 and accuracy >= 0.75",
       "owner": "evaluation-platform"
     },
     {

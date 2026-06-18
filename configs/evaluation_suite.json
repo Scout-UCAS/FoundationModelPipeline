@@ -3,6 +3,7 @@
     "general",
     "reasoning",
     "multimodal_understanding",
+    "audio_speech",
     "vla",
     "long_context",
     "tool_calling",
@@ -93,6 +94,44 @@
       "cadence": "daily-and-release",
       "gate": {
         "accuracy": 0.66
+      }
+    },
+    {
+      "name": "audio_speech_core",
+      "dimension": "audio_speech",
+      "datasets": [
+        "LibriSpeech ASR",
+        "Common Voice ASR",
+        "FLEURS",
+        "CoVoST 2",
+        "SUPERB",
+        "HEAR",
+        "Speech Commands",
+        "AudioSet",
+        "AudioCaps",
+        "Clotho",
+        "VoxCeleb",
+        "DNS Challenge",
+        "LibriTTS",
+        "private-spoken-dialogue-holdout"
+      ],
+      "metrics": [
+        "wer",
+        "cer",
+        "bleu",
+        "accuracy",
+        "caption_cider",
+        "clap_score",
+        "speaker_eer",
+        "der",
+        "mos"
+      ],
+      "weight": 0.9,
+      "cadence": "daily-and-release",
+      "gate": {
+        "wer": 0.18,
+        "cer": 0.12,
+        "accuracy": 0.75
       }
     },
     {

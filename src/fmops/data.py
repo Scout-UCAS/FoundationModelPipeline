@@ -7,7 +7,7 @@ from typing import Any
 from .config import ensure_probability_map, load_json, percent, require_keys
 
 
-REQUIRED_MODALITIES = {"pure_text", "multimodal", "video_pretraining", "vla"}
+REQUIRED_MODALITIES = {"pure_text", "multimodal", "video_pretraining", "audio_speech", "vla"}
 REQUIRED_PROCESSING_CAPABILITIES = {
     "clean": ("clean", "filter", "redaction", "repair"),
     "deduplicate": ("dedup",),
@@ -241,4 +241,3 @@ class DataSystem:
             )
             lines.append(f"| {stage.name} | {stage.objective} | {stage.total_tb:.0f} | {modality_split} | {language_split} |")
         return "\n".join(lines)
-

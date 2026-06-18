@@ -50,7 +50,7 @@ class FrameworkCoreTest(unittest.TestCase):
 
             self.assertTrue(data_path.exists())
             self.assertEqual(1, len(json.loads(train_path.read_text())["runs"]))
-            self.assertEqual(8, json.loads(eval_path.read_text())["summary"]["benchmark_count"])
+            self.assertEqual(9, json.loads(eval_path.read_text())["summary"]["benchmark_count"])
             self.assertEqual(3, json.loads(deploy_path.read_text())["summary"]["target_count"])
 
     def test_checkpoint_tracking_dashboard_and_plugins(self) -> None:
@@ -77,4 +77,3 @@ class FrameworkCoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

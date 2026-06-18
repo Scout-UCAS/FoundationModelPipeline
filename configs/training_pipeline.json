@@ -10,7 +10,7 @@
   "stages": [
     {
       "name": "Pre-training",
-      "objective": "train base model on 2500T+ staged mixture",
+      "objective": "train base model on 2500T+ staged mixture, including audio-speech alignment shards",
       "data_mixture": "core_pretrain",
       "framework": "Megatron-DeepSpeed",
       "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/pretrain.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/pretraining_rank0.json",
@@ -30,7 +30,7 @@
     },
     {
       "name": "SFT",
-      "objective": "align instruction following, multilingual dialogue, multimodal QA, and VLA commands",
+      "objective": "align instruction following, multilingual dialogue, multimodal QA, spoken interaction, and VLA commands",
       "data_mixture": "reasoning_final",
       "framework": "FSDP",
       "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/sft.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/sft_rank0.json",
@@ -40,7 +40,7 @@
         "data": 50,
         "context": 1
       },
-      "monitors": ["loss_spike", "packing_efficiency", "modality_mix", "eval_canary"],
+      "monitors": ["loss_spike", "packing_efficiency", "modality_mix", "speech_asr_canary", "eval_canary"],
       "artifacts": ["sft_checkpoint", "adapter_or_full_weights", "conversation_template", "safety_report"],
       "gates": {
         "max_eval_regression": 0.02,
@@ -49,7 +49,7 @@
     },
     {
       "name": "RL",
-      "objective": "optimize reasoning, preference, safety, and tool-use rewards",
+      "objective": "optimize reasoning, preference, safety, speech interaction, and tool-use rewards",
       "data_mixture": "rl_reasoning_tool_mix",
       "framework": "verl-compatible PPO/GRPO",
       "launcher": "torchrun --nnodes={nodes} --nproc_per_node={gpus_per_node} train/rl.py --mode external --mixture {data_mixture} --world-size {total_gpus} --output artifacts/production/training/rl_rank0.json",
@@ -93,7 +93,7 @@
       "distributed training flow: torchrun/deepspeed launch, checkpoint resharding, and elastic restart",
       "stability monitoring flow: loss spike alarms, NaN/Inf guards, throughput regression dashboard, and expert balance checks",
       "model conversion flow: training checkpoint to inference checkpoint, tokenizer bundle, quantization recipe, and serving metadata",
-      "deployment validation flow: smoke tests on serving stack, multimodal request replay, and car-side benchmark harness"
+      "deployment validation flow: smoke tests on serving stack, multimodal and audio request replay, and car-side benchmark harness"
     ],
     "release_gates": [
       "all stage gates pass",
